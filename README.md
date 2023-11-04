@@ -1,2 +1,2 @@
-# pod-director
-A simple kubernetes utility to help in specific namespaces run in specific nodes
+# Pod Director
+A simple kubernetes utility to make pods in specific namespaces run in specific nodes

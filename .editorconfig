@@ -1,0 +1,6 @@
+[*.rs]
+indent_style = tab
+
+[*.md]
+indent_style = space
+indent_size = 2
