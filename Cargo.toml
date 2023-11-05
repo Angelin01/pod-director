@@ -2,7 +2,6 @@
 name = "pod-director"
 description = "A simple kubernetes utility to make pods in specific namespaces run in specific nodes"
 license = "MIT"
-license-file = "LICENSE"
 repository = "https://github.com/Angelin01/pod-director"
 keywords = ["kubernetes", "pods", "nodes"]
 version = "0.1.0"
@@ -11,3 +10,7 @@ edition = "2021"
 [dependencies]
 serde = { version = "1.0.190", features = ["derive"] }
 figment = { version = "0.10.12", features = ["env", "yaml"] }
+
+[dev-dependencies]
+figment = { version = "0.10.12", features = ["test"] }
+indoc = "2.0.4"
