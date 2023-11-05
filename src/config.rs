@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use figment::{Figment, error, providers::{Env, Format, Yaml}};
-use serde::Deserialize;
+use figment::providers::Serialized;
+use serde::{Deserialize, Serialize};
 
 static ENV_PREFIX: &'static str = "PD_";
 static ENV_CONFIG_FILE: &'static str = "PD_CONFIG_FILE";
@@ -10,19 +11,27 @@ impl Config {
 	pub fn load() -> error::Result<Self> {
 		let config_file = std::env::var(ENV_CONFIG_FILE).unwrap_or(DEFAULT_CONFIG_FILE.into());
 
-		Figment::new()
+		Figment::from(Serialized::defaults(Config::default()))
 			.merge(Yaml::file(config_file))
 			.merge(Env::prefixed(ENV_PREFIX).split("__"))
 			.extract()
 	}
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+impl Default for Config {
+	fn default() -> Self {
+		Config {
+			groups: HashMap::new(),
+		}
+	}
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
 pub struct Config {
 	groups: HashMap<String, GroupConfig>,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct GroupConfig {
 	node_selector: Option<Vec<String>>,
