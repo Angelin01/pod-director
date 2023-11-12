@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::{IpAddr, SocketAddr};
 use figment::{Figment, error, providers::{Env, Format, Yaml}};
 use figment::providers::Serialized;
 use serde::{Deserialize, Serialize};
@@ -18,22 +19,40 @@ impl Config {
 	}
 }
 
-impl Default for Config {
+
+#[derive(Deserialize, Serialize, Default, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct Config {
+	pub groups: HashMap<String, GroupConfig>,
+	pub server: ServerConfig,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+#[serde(rename_all = "camelCase")]
+pub struct ServerConfig {
+	bind_addr: IpAddr,
+	port: u16,
+}
+
+impl ServerConfig {
+	pub fn socker_addr(&self) -> SocketAddr {
+		SocketAddr::new(self.bind_addr, self.port)
+	}
+}
+
+impl Default for ServerConfig {
 	fn default() -> Self {
-		Config {
-			groups: HashMap::new(),
+		ServerConfig {
+			bind_addr: IpAddr::from([0, 0, 0, 0]),
+			port: 8443,
 		}
 	}
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct Config {
-	groups: HashMap<String, GroupConfig>,
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
-struct GroupConfig {
+pub struct GroupConfig {
 	node_selector: Option<Vec<String>>,
 	affinity: Option<Vec<String>>,
 	tolerations: Option<Vec<String>>,
@@ -87,7 +106,7 @@ mod tests {
 				tolerations: Some(vec!["1".into(), "2".into()]),
 			});
 
-			assert_eq!(config, Config { groups });
+			assert_eq!(config, Config { groups, server: Default::default() });
 
 			Ok(())
 		});
@@ -119,7 +138,7 @@ mod tests {
 				tolerations: None,
 			});
 
-			assert_eq!(config, Config { groups });
+			assert_eq!(config, Config { groups, server: Default::default() });
 
 			Ok(())
 		});
@@ -144,7 +163,7 @@ mod tests {
 				tolerations: None,
 			});
 
-			assert_eq!(config, Config { groups });
+			assert_eq!(config, Config { groups, server: Default::default() });
 
 			Ok(())
 		});
@@ -164,7 +183,7 @@ mod tests {
 				tolerations: None,
 			});
 
-			assert_eq!(config, Config { groups });
+			assert_eq!(config, Config { groups, server: Default::default() });
 
 			Ok(())
 		});
