@@ -1,3 +1,7 @@
+mod config;
+
 fn main() {
-	println!("Hello, world!");
+	let config = config::Config::load();
+	println!("Loaded config:");
+	println!("{config:?}");
 }
