@@ -1,5 +1,6 @@
 mod config;
 mod server;
+mod error;
 
 #[tokio::main]
 async fn main() {
@@ -7,8 +8,10 @@ async fn main() {
 	println!("Loaded config:");
 	println!("{config:?}");
 
-	axum::Server::bind(&config.server.socker_addr())
-		.serve(server::build_app().into_make_service())
-		.await
-		.unwrap();
+	match server::serve(&config).await {
+		Ok(_) => {}
+		Err(e) => {
+			println!("ERROR: Failed serving server: {e}");
+		}
+	};
 }

@@ -1,8 +1,12 @@
+use anyhow::{Error, Result};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
+use axum_server::tls_rustls::RustlsConfig;
 use figment::{Figment, error, providers::{Env, Format, Yaml}};
 use figment::providers::Serialized;
 use serde::{Deserialize, Serialize};
+use crate::error::ConfigError;
 
 static ENV_PREFIX: &'static str = "PD_";
 static ENV_CONFIG_FILE: &'static str = "PD_CONFIG_FILE";
@@ -33,11 +37,27 @@ pub struct Config {
 pub struct ServerConfig {
 	bind_addr: IpAddr,
 	port: u16,
+	pub insecure: bool,
+	cert: PathBuf,
+	key: PathBuf,
 }
 
 impl ServerConfig {
 	pub fn socker_addr(&self) -> SocketAddr {
 		SocketAddr::new(self.bind_addr, self.port)
+	}
+
+	pub async fn tls_config(&self) -> Result<RustlsConfig> {
+		match RustlsConfig::from_pem_file(&self.cert, &self.key).await {
+			Ok(v) => Ok(v),
+			Err(e) => {
+				Err(Error::from(ConfigError::TlsConfig {
+					source: Error::from(e),
+					cert_path: self.cert.clone(),
+					key_path: self.key.clone(),
+				}))
+			}
+		}
 	}
 }
 
@@ -46,6 +66,9 @@ impl Default for ServerConfig {
 		ServerConfig {
 			bind_addr: IpAddr::from([0, 0, 0, 0]),
 			port: 8443,
+			insecure: false,
+			cert: PathBuf::from("cert.pem"),
+			key: PathBuf::from("key.pem"),
 		}
 	}
 }
