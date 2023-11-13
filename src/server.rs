@@ -20,21 +20,23 @@ pub async fn serve(config: &Config) -> Result<()> {
 	let shutdown_handle = Handle::new();
 	tokio::spawn(graceful_shutdown(shutdown_handle.clone()));
 
-	Ok(match config.server.insecure {
-		true => {
-			axum_server::bind(addr)
-				.handle(shutdown_handle)
-				.serve(build_app().into_make_service())
-				.await?;
-		}
-		false => {
-			let tls_config = config.server.tls_config().await?;
-			axum_server::bind_rustls(addr, tls_config)
-				.handle(shutdown_handle)
-				.serve(build_app().into_make_service())
-				.await?;
-		}
-	})
+	let service = build_app().into_make_service();
+
+	if config.server.insecure {
+		axum_server::bind(addr)
+			.handle(shutdown_handle)
+			.serve(service)
+			.await?;
+	}
+	else {
+		let tls_config = config.server.tls_config().await?;
+		axum_server::bind_rustls(addr, tls_config)
+			.handle(shutdown_handle)
+			.serve(service)
+			.await?;
+	}
+
+	Ok(())
 }
 
 async fn graceful_shutdown(handle: Handle) {
