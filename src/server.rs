@@ -22,6 +22,8 @@ pub async fn serve(config: &Config) -> Result<()> {
 
 	let service = build_app().into_make_service();
 
+	println!("Server starting, listening on {addr}");
+
 	if config.server.insecure {
 		axum_server::bind(addr)
 			.handle(shutdown_handle)
