@@ -1,13 +1,18 @@
 mod health_handler;
 
+use std::path::{Path};
 use std::time::Duration;
-use anyhow::Result;
+use anyhow::{Result, Error};
 use axum::Router;
 use axum::routing::get;
 use axum_server::Handle;
+use axum_server::tls_rustls::RustlsConfig;
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use notify_debouncer_full::{DebouncedEvent, Debouncer, FileIdMap, new_debouncer};
 use tokio::signal;
+use tokio::sync::mpsc::Receiver;
 use health_handler::health_handler;
-use crate::config::Config;
+use crate::config::{Config};
 
 fn build_app() -> Router {
 	Router::new()
@@ -32,10 +37,18 @@ pub async fn serve(config: &Config) -> Result<()> {
 	}
 	else {
 		let tls_config = config.server.tls_config().await?;
-		axum_server::bind_rustls(addr, tls_config)
+		let hot_reload = tokio::spawn(hot_reload_tls(tls_config.clone(), config.server.cert.clone(), config.server.key.clone()));
+
+		let result = axum_server::bind_rustls(addr, tls_config)
 			.handle(shutdown_handle)
 			.serve(service)
-			.await?;
+			.await;
+
+		hot_reload.abort();
+
+		if let Err(e) = result {
+			return Err(Error::new(e));
+		}
 	}
 
 	Ok(())
@@ -71,4 +84,57 @@ async fn graceful_shutdown(handle: Handle) {
 		println!("Received signal, shutting down");
 		handle.graceful_shutdown(Some(Duration::from_secs(30)));
 	}
+}
+
+
+async fn hot_reload_tls(tls_config: RustlsConfig, cert_path: impl AsRef<Path>, key_path: impl AsRef<Path>) -> Result<()> {
+	let (mut debouncer, mut event_rx) = tls_watcher().await?;
+
+	debouncer.watcher().watch(cert_path.as_ref(), RecursiveMode::NonRecursive)?;
+	debouncer.watcher().watch(key_path.as_ref(), RecursiveMode::NonRecursive)?;
+
+	while let Some(events) = event_rx.recv().await {
+		let should_reload = events.iter().any(|e| {
+			let kind = &e.kind;
+			kind.is_modify() || kind.is_create() || kind.is_remove()
+		});
+
+		if should_reload {
+			match tls_config.reload_from_pem_file(&cert_path, &key_path).await {
+				Ok(_) => println!("Reloaded TLS certificates"),
+				Err(e) => println!("Failed reloading TLS certificates: {e}"),
+			};
+		}
+	}
+
+	Ok(())
+}
+
+async fn tls_watcher() -> Result<(Debouncer<RecommendedWatcher, FileIdMap>, Receiver<Vec<DebouncedEvent>>)> {
+	let (tx, rx) = tokio::sync::mpsc::channel(1);
+	// We're using this since async closures are unstable and I'd rather avoid nightly
+	let current_thread = tokio::runtime::Handle::current();
+
+	let debouncer = new_debouncer(
+		Duration::from_secs(1),
+		None,
+		move |res| {
+			let tx = tx.clone();
+
+			match res {
+				Ok(value) => {
+					current_thread.spawn(async move {
+						if let Err(e) = tx.send(value).await {
+							println!("Failed sending TLS reload event, error: {e}");
+						}
+					});
+				}
+				Err(err) => {
+					println!("Errored while watching TLS, errors: {err:?}");
+				}
+			};
+		}
+	)?;
+
+	Ok((debouncer, rx))
 }
