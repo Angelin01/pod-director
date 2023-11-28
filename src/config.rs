@@ -38,8 +38,8 @@ pub struct ServerConfig {
 	bind_addr: IpAddr,
 	port: u16,
 	pub insecure: bool,
-	cert: PathBuf,
-	key: PathBuf,
+	pub cert: PathBuf,
+	pub key: PathBuf,
 }
 
 impl ServerConfig {
