@@ -1,10 +1,11 @@
 mod health_handler;
+mod mutate_handler;
 
 use std::path::{Path};
 use std::time::Duration;
 use anyhow::{Result, Error};
 use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum_server::Handle;
 use axum_server::tls_rustls::RustlsConfig;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
@@ -12,11 +13,13 @@ use notify_debouncer_full::{DebouncedEvent, Debouncer, FileIdMap, new_debouncer}
 use tokio::signal;
 use tokio::sync::mpsc::Receiver;
 use health_handler::health_handler;
+use mutate_handler::mutate_handler;
 use crate::config::{Config};
 
 fn build_app() -> Router {
 	Router::new()
 		.route("/health", get(health_handler))
+		.route("/mutate", post(mutate_handler))
 }
 
 pub async fn serve(config: &Config) -> Result<()> {
