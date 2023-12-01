@@ -6,6 +6,11 @@ RUN apk add --no-cache musl-dev=1.2.4-r2
 
 COPY .cargo .
 COPY Cargo* ./
+
+RUN mkdir -p src && \
+    touch src/lib.rs && \
+    cargo build --release --locked --target=x86_64-unknown-linux-musl
+
 COPY src src/
 
 RUN cargo build --release --locked --target=x86_64-unknown-linux-musl
