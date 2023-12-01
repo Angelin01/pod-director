@@ -19,9 +19,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --locked --verbose
       - run: cargo test --locked
-  docker-build:
-    name: Build the Docker image
+  image-build:
+    name: Build the container image
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: docker build . --file Dockerfile --tag pod-director:$(date +%s)
+      - run: docker build . --file Containerfile --tag pod-director:$(date +%s)
