@@ -1,14 +1,16 @@
+use std::sync::Arc;
+
 mod config;
-mod server;
 mod error;
+mod server;
 
 #[tokio::main]
 async fn main() {
-	let config = config::Config::load().unwrap();
+	let config = Arc::new(config::Config::load().unwrap());
 	println!("Loaded config:");
 	println!("{config:?}");
 
-	match server::serve(&config).await {
+	match server::serve(config).await {
 		Ok(_) => {}
 		Err(e) => {
 			println!("ERROR: Failed serving server: {e}");
