@@ -3,6 +3,7 @@ use std::sync::Arc;
 mod config;
 mod error;
 mod server;
+mod service;
 
 #[tokio::main]
 async fn main() {

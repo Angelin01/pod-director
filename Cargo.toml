@@ -8,7 +8,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-kube = { version = "0.87.1", default-features = false, features = ["admission"] }
+kube = { version = "0.87.1", default-features = false, features = ["admission", "client"] }
 k8s-openapi = { version = "0.20.0", features = ["earliest"] }
 serde = { version = "1.0.190", features = ["derive"] }
 figment = { version = "0.10.12", features = ["env", "yaml"] }

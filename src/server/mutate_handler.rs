@@ -2,7 +2,7 @@ use crate::config::Config;
 use axum::extract::State;
 use axum::Json;
 use k8s_openapi::api::core::v1::Pod;
-use kube::core::admission::{AdmissionResponse, AdmissionReview};
+use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 use std::sync::Arc;
 use kube::core::DynamicObject;
 
@@ -11,7 +11,7 @@ pub async fn mutate_handler(
 	State(config): State<Arc<Config>>,
 	Json(body): Json<AdmissionReview<Pod>>,
 ) -> Json<AdmissionReview<DynamicObject>> {
-	let request = match body.try_into() {
+	let request: AdmissionRequest<Pod> = match body.try_into() {
 		Err(err) => {
 			return Json(AdmissionResponse::invalid(err).into_review());
 		}
