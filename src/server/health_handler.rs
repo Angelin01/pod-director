@@ -12,15 +12,18 @@ pub struct HealthResponse {
 
 #[cfg(test)]
 mod tests {
+	use std::sync::Arc;
 	use axum::body::Body;
 	use axum::http::{Request, StatusCode};
 	use serde_json::{json, Value};
 	use tower::ServiceExt;
+	use crate::config::Config;
 	use crate::server;
 
 	#[tokio::test]
 	async fn health_test() {
-		let app = server::build_app();
+		let config = Arc::new(Config::default());
+		let app = server::build_app(config);
 
 		let request = Request::builder().uri("/health").body(Body::empty()).unwrap();
 
