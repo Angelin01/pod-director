@@ -76,9 +76,9 @@ impl Default for ServerConfig {
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupConfig {
-	node_selector: Option<Vec<String>>,
-	affinity: Option<Vec<String>>,
-	tolerations: Option<Vec<String>>,
+	pub node_selector: Option<HashMap<String, String>>,
+	pub affinity: Option<Vec<String>>,
+	pub tolerations: Option<Vec<String>>,
 }
 
 #[cfg(test)]
@@ -94,13 +94,16 @@ mod tests {
 			jail.create_file(DEFAULT_CONFIG_FILE, indoc! { r#"
 				groups:
 				  foo:
-				    nodeSelector: ["a", "b", "c"]
+				    nodeSelector:
+				    	a: "1"
+				    	b: "2"
+				    	c: "3"
 				  bar:
 				    tolerations: ["1", "2"]
 				  bazz:
 				    affinity: []
 				  all:
-				    nodeSelector: ["a", "b", "c"]
+				    nodeSelector: {"a": "1", "b": "2", "c": "3"}
 				    tolerations: ["1", "2"]
 				    affinity: []
 			"# })?;
@@ -109,7 +112,11 @@ mod tests {
 
 			let mut groups = HashMap::new();
 			groups.insert("foo".into(), GroupConfig {
-				node_selector: Some(vec!["a".into(), "b".into(), "c".into()]),
+				node_selector: Some(HashMap::from([
+					("a".into(), "1".into()),
+					("b".into(), "2".into()),
+					("c".into(), "3".into()),
+				])),
 				affinity: None,
 				tolerations: None,
 			});
@@ -124,7 +131,11 @@ mod tests {
 				tolerations: None,
 			});
 			groups.insert("all".into(), GroupConfig {
-				node_selector: Some(vec!["a".into(), "b".into(), "c".into()]),
+				node_selector: Some(HashMap::from([
+					("a".into(), "1".into()),
+					("b".into(), "2".into()),
+					("c".into(), "3".into()),
+				])),
 				affinity: Some(vec![]),
 				tolerations: Some(vec!["1".into(), "2".into()]),
 			});
@@ -141,13 +152,13 @@ mod tests {
 			jail.create_file(DEFAULT_CONFIG_FILE, indoc! { r#"
 				groups:
 				  foo:
-				    nodeSelector: []
+				    nodeSelector: {}
 			"# })?;
 
 			jail.create_file("other-config-file.yaml", indoc! { r#"
 				groups:
 				  bar:
-				    nodeSelector: ["a"]
+				    nodeSelector: {"a": "1"}
 			"# })?;
 
 			jail.set_env(ENV_CONFIG_FILE, "other-config-file.yaml");
@@ -156,7 +167,7 @@ mod tests {
 
 			let mut groups = HashMap::new();
 			groups.insert("bar".into(), GroupConfig {
-				node_selector: Some(vec!["a".into()]),
+				node_selector: Some(HashMap::from([("a".into(), "1".into())])),
 				affinity: None,
 				tolerations: None,
 			});

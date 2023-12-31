@@ -1,30 +1,44 @@
-use crate::config::Config;
-use crate::service::kubernetes;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::Json;
+use axum::response::IntoResponse;
+use json_patch::PatchOperation;
 use k8s_openapi::api::core::v1::Pod;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
-use kube::core::DynamicObject;
-use std::sync::Arc;
+use serde_json::json;
+
+use crate::config::Config;
+use crate::service::kubernetes;
+use crate::utils::patch;
 
 #[axum::debug_handler]
 pub async fn mutate_handler(
 	State(config): State<Arc<Config>>,
 	Json(body): Json<AdmissionReview<Pod>>,
-) -> Json<AdmissionReview<DynamicObject>> {
+) -> impl IntoResponse {
 	let request: AdmissionRequest<Pod> = match body.try_into() {
 		Err(err) => {
-			// TODO: should probably be bad request
-			return Json(AdmissionResponse::invalid(err).into_review());
+			// TODO: Should probably have a custom error return
+			println!("Bad request");
+			return (
+				StatusCode::BAD_REQUEST,
+				Json(AdmissionResponse::invalid(err).into_review()),
+			);
 		}
 		Ok(v) => v,
 	};
 
 	let namespace = match request.namespace {
 		None => {
-			return Json(
-				AdmissionResponse::invalid("Pod has no namespace defined (this is unexpected)")
-					.into_review(),
+			return (
+				StatusCode::OK,
+				Json(
+					AdmissionResponse::invalid("Pod has no namespace defined (this is unexpected)")
+						.into_review(),
+				),
 			);
 		}
 		Some(ref v) => v,
@@ -32,21 +46,84 @@ pub async fn mutate_handler(
 
 	let group = match kubernetes::namespace_group(namespace).await {
 		Err(err) => {
-			// TODO: should be internal server error
-			return Json(AdmissionResponse::invalid(err).into_review());
+			// TODO: Should probably have a custom error return
+			println!("Couldn't get namespace: {err:?}");
+			return (
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(AdmissionResponse::from(&request).into_review()),
+			);
 		}
 		Ok(v) => match v {
 			None => {
 				let warnings = vec!["processed pod's namespace doesn't contain a pod-director group label, the MutatingWebhookConfiguration is probably misconfigured".into()];
 				let mut response = AdmissionResponse::from(&request);
 				response.warnings = Some(warnings);
-				return Json(response.into_review());
+				return (StatusCode::OK, Json(response.into_review()));
 			}
 			Some(g) => g,
 		},
 	};
 
+	let mut patches = Vec::new();
+	match &config.groups.get(&group) {
+		None => {
+			let reason = format!(
+				"No pod-director group configured with the name {group}, the namespace {namespace} is misconfigured"
+			);
+
+			return (
+				StatusCode::OK,
+				Json(AdmissionResponse::from(&request).deny(reason).into_review()),
+			);
+		}
+		Some(ref group_config) => {
+			if let Some(node_selector_config) = &group_config.node_selector {
+				patches.extend(calculate_node_selector_patches(
+					request.object.as_ref().unwrap(),
+					&node_selector_config,
+				));
+			}
+		}
+	};
+
 	println!("In namespace {namespace}, group {group:?}");
 
-	Json(AdmissionResponse::from(&request).into_review())
+	(
+		StatusCode::OK,
+		Json(
+			AdmissionResponse::from(&request)
+				.with_patch(json_patch::Patch(patches))
+				.unwrap()
+				.into_review(),
+		),
+	)
+}
+
+fn calculate_node_selector_patches(
+	pod: &Pod,
+	node_selector_config: &HashMap<String, String>,
+) -> Vec<PatchOperation> {
+	let mut patches = Vec::new();
+
+	let maybe_node_selector = &pod.spec.as_ref().unwrap().node_selector;
+
+	match maybe_node_selector.as_ref() {
+		None => {
+			patches.push(patch::add("/spec/nodeSelector".into(), json!({})));
+			node_selector_config.iter().for_each(|(k, v)| {
+				patches.push(patch::add(format!("/spec/nodeSelector/{k}"), json!(v)));
+			})
+		}
+		Some(node_selector) => {
+			for (k, v) in node_selector_config.iter() {
+				if let Some(_) = node_selector.get(k) {
+					todo!("Handle conflict");
+				}
+
+				patch::add(format!("/spec/nodeSelector/{k}"), json!(v));
+			}
+		}
+	}
+
+	patches
 }

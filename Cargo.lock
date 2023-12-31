@@ -1067,6 +1067,7 @@ dependencies = [
  "figment",
  "hyper",
  "indoc",
+ "json-patch",
  "k8s-openapi",
  "kube",
  "notify",

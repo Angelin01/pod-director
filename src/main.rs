@@ -4,6 +4,7 @@ mod config;
 mod error;
 mod server;
 mod service;
+mod utils;
 
 #[tokio::main]
 async fn main() {
