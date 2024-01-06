@@ -18,7 +18,7 @@ impl Config {
 
 		Figment::from(Serialized::defaults(Config::default()))
 			.merge(Yaml::file(config_file))
-			.merge(Env::prefixed(ENV_PREFIX).split("__"))
+			.merge(Env::prefixed(ENV_PREFIX).split("_"))
 			.extract()
 	}
 }
@@ -186,7 +186,7 @@ mod tests {
 				  foo:
 				    affinity: ["x", "y"]
 			"# })?;
-			jail.set_env("PD_GROUPS__FOO__AFFINITY", r#"["a", "b"]"#);
+			jail.set_env("PD_GROUPS_FOO_AFFINITY", r#"["a", "b"]"#);
 
 			let config = Config::load()?;
 
@@ -206,7 +206,7 @@ mod tests {
 	#[test]
 	fn given_value_provided_by_env_and_by_file_then_should_load_value_from_env() {
 		Jail::expect_with(|jail| {
-			jail.set_env("PD_GROUPS__FOO__AFFINITY", r#"["a", "b"]"#);
+			jail.set_env("PD_GROUPS_FOO_AFFINITY", r#"["a", "b"]"#);
 
 			let config = Config::load()?;
 
