@@ -23,12 +23,20 @@ impl Config {
 	}
 }
 
+#[derive(Deserialize, Serialize, Default, Debug, PartialEq)]
+pub enum Conflict {
+	#[default]
+	IGNORE,
+	OVERRIDE,
+	REFUSE
+}
 
 #[derive(Deserialize, Serialize, Default, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct Config {
 	pub groups: HashMap<String, GroupConfig>,
 	pub server: ServerConfig,
+	pub conflict: Conflict
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -94,10 +102,10 @@ mod tests {
 			jail.create_file(DEFAULT_CONFIG_FILE, indoc! { r#"
 				groups:
 				  foo:
-				    nodeSelector:
-				    	a: "1"
-				    	b: "2"
-				    	c: "3"
+                    nodeSelector:
+                      a: "1"
+                      b: "2"
+                      c: "3"
 				  bar:
 				    tolerations: ["1", "2"]
 				  bazz:
@@ -140,7 +148,7 @@ mod tests {
 				tolerations: Some(vec!["1".into(), "2".into()]),
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default() });
+			assert_eq!(config, Config { groups, server: Default::default(), conflict: Default::default() });
 
 			Ok(())
 		});
@@ -172,7 +180,7 @@ mod tests {
 				tolerations: None,
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default() });
+			assert_eq!(config, Config { groups, server: Default::default(), conflict: Default::default() });
 
 			Ok(())
 		});
@@ -197,7 +205,7 @@ mod tests {
 				tolerations: None,
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default() });
+			assert_eq!(config, Config { groups, server: Default::default(), conflict: Default::default() });
 
 			Ok(())
 		});
@@ -217,7 +225,7 @@ mod tests {
 				tolerations: None,
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default() });
+			assert_eq!(config, Config { groups, server: Default::default(), conflict: Default::default() });
 
 			Ok(())
 		});

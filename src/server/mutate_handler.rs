@@ -10,7 +10,7 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 use serde_json::json;
 
-use crate::config::Config;
+use crate::config::{Config, Conflict};
 use crate::service::kubernetes;
 use crate::utils::patch;
 
@@ -81,6 +81,7 @@ pub async fn mutate_handler(
 				patches.extend(calculate_node_selector_patches(
 					request.object.as_ref().unwrap(),
 					&node_selector_config,
+					&config.conflict
 				));
 			}
 		}
@@ -102,6 +103,7 @@ pub async fn mutate_handler(
 fn calculate_node_selector_patches(
 	pod: &Pod,
 	node_selector_config: &HashMap<String, String>,
+	conflict_config: &Conflict
 ) -> Vec<PatchOperation> {
 	let mut patches = Vec::new();
 
@@ -117,10 +119,22 @@ fn calculate_node_selector_patches(
 		Some(node_selector) => {
 			for (k, v) in node_selector_config.iter() {
 				if let Some(_) = node_selector.get(k) {
-					todo!("Handle conflict");
+					match conflict_config {
+						Conflict::IGNORE => {
+							println!("IGNORING...");
+						}
+						Conflict::OVERRIDE => {
+							println!("OVERRIDING...");
+							patches.push(patch::replace(format!("/spec/nodeSelector/{k}"), json!(v)));
+						}
+						Conflict::REFUSE => {
+							println!("REFUSING...");
+							break;
+						}
+					}
+				} else {
+					patches.push(patch::add(format!("/spec/nodeSelector/{k}"), json!(v)));
 				}
-
-				patch::add(format!("/spec/nodeSelector/{k}"), json!(v));
 			}
 		}
 	}
