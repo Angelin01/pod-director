@@ -26,9 +26,9 @@ impl Config {
 #[derive(Deserialize, Serialize, Default, Debug, PartialEq)]
 pub enum Conflict {
 	#[default]
-	IGNORE,
-	OVERRIDE,
-	REFUSE
+	Ignore,
+	Override,
+	Refuse
 }
 
 #[derive(Deserialize, Serialize, Default, Debug)]
@@ -36,7 +36,6 @@ pub enum Conflict {
 pub struct Config {
 	pub groups: HashMap<String, GroupConfig>,
 	pub server: ServerConfig,
-	pub conflict: Conflict
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -87,6 +86,7 @@ pub struct GroupConfig {
 	pub node_selector: Option<HashMap<String, String>>,
 	pub affinity: Option<Vec<String>>,
 	pub tolerations: Option<Vec<String>>,
+	pub on_conflict: Option<Conflict>,
 }
 
 #[cfg(test)]
@@ -127,16 +127,19 @@ mod tests {
 				])),
 				affinity: None,
 				tolerations: None,
+				on_conflict: None,
 			});
 			groups.insert("bar".into(), GroupConfig {
 				node_selector: None,
 				affinity: None,
 				tolerations: Some(vec!["1".into(), "2".into()]),
+				on_conflict: None,
 			});
 			groups.insert("bazz".into(), GroupConfig {
 				node_selector: None,
 				affinity: Some(vec![]),
 				tolerations: None,
+				on_conflict: None,
 			});
 			groups.insert("all".into(), GroupConfig {
 				node_selector: Some(HashMap::from([
@@ -146,9 +149,10 @@ mod tests {
 				])),
 				affinity: Some(vec![]),
 				tolerations: Some(vec!["1".into(), "2".into()]),
+				on_conflict: None,
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default(), conflict: Default::default() });
+			assert_eq!(config, Config { groups, server: Default::default() });
 
 			Ok(())
 		});
@@ -178,9 +182,10 @@ mod tests {
 				node_selector: Some(HashMap::from([("a".into(), "1".into())])),
 				affinity: None,
 				tolerations: None,
+				on_conflict: None,
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default(), conflict: Default::default() });
+			assert_eq!(config, Config { groups, server: Default::default() });
 
 			Ok(())
 		});
@@ -203,9 +208,10 @@ mod tests {
 				node_selector: None,
 				affinity: Some(vec!["a".into(), "b".into()]),
 				tolerations: None,
+				on_conflict: None,
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default(), conflict: Default::default() });
+			assert_eq!(config, Config { groups, server: Default::default() });
 
 			Ok(())
 		});
@@ -223,9 +229,10 @@ mod tests {
 				node_selector: None,
 				affinity: Some(vec!["a".into(), "b".into()]),
 				tolerations: None,
+				on_conflict: None,
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default(), conflict: Default::default() });
+			assert_eq!(config, Config { groups, server: Default::default() });
 
 			Ok(())
 		});
