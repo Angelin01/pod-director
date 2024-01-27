@@ -81,7 +81,7 @@ pub async fn mutate_handler(
 				patches.extend(calculate_node_selector_patches(
 					request.object.as_ref().unwrap(),
 					&node_selector_config,
-					&group_config.on_conflict
+					&group_config.on_conflict,
 				));
 			}
 		}
@@ -103,7 +103,7 @@ pub async fn mutate_handler(
 fn calculate_node_selector_patches(
 	pod: &Pod,
 	node_selector_config: &HashMap<String, String>,
-	conflict_config: &Option<Conflict>
+	conflict_config: &Conflict
 ) -> Vec<PatchOperation> {
 	let mut patches = Vec::new();
 
@@ -120,21 +120,18 @@ fn calculate_node_selector_patches(
 			for (k, v) in node_selector_config.iter() {
 				if let Some(_) = node_selector.get(k) {
 					match conflict_config {
-						Some(Conflict::Ignore) => {
+						Conflict::Ignore => {
 							println!("Conflict found! As 'on_conflict' is set to 'ignore', the original value will be kept.");
 						}
-						Some(Conflict::Override) => {
+						Conflict::Override => {
 							println!("Conflict found! As 'on_conflict' is set to 'override', the original value will be overriden.");
 							patches.push(patch::replace(format!("/spec/nodeSelector/{k}"), json!(v)));
 						}
-						Some(Conflict::Refuse) => {
+						Conflict::Reject => {
 							println!("Conflict found! As 'on_conflict' is set to 'refuse', the entire operation will halt.");
 							break;
 						}
-						None => {}
 					}
-				} else {
-					patches.push(patch::add(format!("/spec/nodeSelector/{k}"), json!(v)));
 				}
 			}
 		}
