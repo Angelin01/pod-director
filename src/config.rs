@@ -103,9 +103,9 @@ mod tests {
 				groups:
 				  foo:
 				    nodeSelector:
-					  a: "1"
-					  b: "2"
-					  c: "3"
+				      a: "1"
+				      b: "2"
+				      c: "3"
 				  bar:
 				    tolerations: ["1", "2"]
 				  bazz:
