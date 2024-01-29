@@ -102,10 +102,10 @@ mod tests {
 			jail.create_file(DEFAULT_CONFIG_FILE, indoc! { r#"
 				groups:
 				  foo:
-                    nodeSelector:
-                      a: "1"
-                      b: "2"
-                      c: "3"
+				    nodeSelector:
+				      a: "1"
+				      b: "2"
+				      c: "3"
 				  bar:
 				    tolerations: ["1", "2"]
 				  bazz:
