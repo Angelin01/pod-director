@@ -7,3 +7,10 @@ pub fn add(path: String, value: Value) -> PatchOperation {
 		value,
 	})
 }
+
+pub fn replace(path: String, value: Value) -> PatchOperation {
+	PatchOperation::Replace(json_patch::ReplaceOperation {
+		path,
+		value
+	})
+}

@@ -10,7 +10,7 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 use serde_json::json;
 
-use crate::config::Config;
+use crate::config::{Config, Conflict};
 use crate::service::kubernetes;
 use crate::utils::patch;
 
@@ -81,6 +81,7 @@ pub async fn mutate_handler(
 				patches.extend(calculate_node_selector_patches(
 					request.object.as_ref().unwrap(),
 					&node_selector_config,
+					&group_config.on_conflict,
 				));
 			}
 		}
@@ -102,6 +103,7 @@ pub async fn mutate_handler(
 fn calculate_node_selector_patches(
 	pod: &Pod,
 	node_selector_config: &HashMap<String, String>,
+	conflict_config: &Conflict
 ) -> Vec<PatchOperation> {
 	let mut patches = Vec::new();
 
@@ -117,10 +119,20 @@ fn calculate_node_selector_patches(
 		Some(node_selector) => {
 			for (k, v) in node_selector_config.iter() {
 				if let Some(_) = node_selector.get(k) {
-					todo!("Handle conflict");
+					match conflict_config {
+						Conflict::Ignore => {
+							println!("Conflict found! As 'on_conflict' is set to 'ignore', the original value will be kept.");
+						}
+						Conflict::Override => {
+							println!("Conflict found! As 'on_conflict' is set to 'override', the original value will be overriden.");
+							patches.push(patch::replace(format!("/spec/nodeSelector/{k}"), json!(v)));
+						}
+						Conflict::Reject => {
+							println!("Conflict found! As 'on_conflict' is set to 'refuse', the entire operation will halt.");
+							break;
+						}
+					}
 				}
-
-				patch::add(format!("/spec/nodeSelector/{k}"), json!(v));
 			}
 		}
 	}

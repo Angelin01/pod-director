@@ -18,11 +18,18 @@ impl Config {
 
 		Figment::from(Serialized::defaults(Config::default()))
 			.merge(Yaml::file(config_file))
-			.merge(Env::prefixed(ENV_PREFIX).split("__"))
+			.merge(Env::prefixed(ENV_PREFIX).split("_"))
 			.extract()
 	}
 }
 
+#[derive(Deserialize, Serialize, Default, Debug, PartialEq)]
+pub enum Conflict {
+	Ignore,
+	Override,
+	#[default]
+	Reject
+}
 
 #[derive(Deserialize, Serialize, Default, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -79,6 +86,7 @@ pub struct GroupConfig {
 	pub node_selector: Option<HashMap<String, String>>,
 	pub affinity: Option<Vec<String>>,
 	pub tolerations: Option<Vec<String>>,
+	pub on_conflict: Conflict,
 }
 
 #[cfg(test)]
@@ -95,9 +103,9 @@ mod tests {
 				groups:
 				  foo:
 				    nodeSelector:
-				    	a: "1"
-				    	b: "2"
-				    	c: "3"
+				      a: "1"
+				      b: "2"
+				      c: "3"
 				  bar:
 				    tolerations: ["1", "2"]
 				  bazz:
@@ -119,16 +127,19 @@ mod tests {
 				])),
 				affinity: None,
 				tolerations: None,
+				on_conflict: Default::default(),
 			});
 			groups.insert("bar".into(), GroupConfig {
 				node_selector: None,
 				affinity: None,
 				tolerations: Some(vec!["1".into(), "2".into()]),
+				on_conflict: Default::default(),
 			});
 			groups.insert("bazz".into(), GroupConfig {
 				node_selector: None,
 				affinity: Some(vec![]),
 				tolerations: None,
+				on_conflict: Default::default(),
 			});
 			groups.insert("all".into(), GroupConfig {
 				node_selector: Some(HashMap::from([
@@ -138,6 +149,7 @@ mod tests {
 				])),
 				affinity: Some(vec![]),
 				tolerations: Some(vec!["1".into(), "2".into()]),
+				on_conflict: Default::default(),
 			});
 
 			assert_eq!(config, Config { groups, server: Default::default() });
@@ -170,6 +182,7 @@ mod tests {
 				node_selector: Some(HashMap::from([("a".into(), "1".into())])),
 				affinity: None,
 				tolerations: None,
+				on_conflict: Default::default(),
 			});
 
 			assert_eq!(config, Config { groups, server: Default::default() });
@@ -186,7 +199,7 @@ mod tests {
 				  foo:
 				    affinity: ["x", "y"]
 			"# })?;
-			jail.set_env("PD_GROUPS__FOO__AFFINITY", r#"["a", "b"]"#);
+			jail.set_env("PD_GROUPS_FOO_AFFINITY", r#"["a", "b"]"#);
 
 			let config = Config::load()?;
 
@@ -195,6 +208,7 @@ mod tests {
 				node_selector: None,
 				affinity: Some(vec!["a".into(), "b".into()]),
 				tolerations: None,
+				on_conflict: Default::default(),
 			});
 
 			assert_eq!(config, Config { groups, server: Default::default() });
@@ -206,7 +220,7 @@ mod tests {
 	#[test]
 	fn given_value_provided_by_env_and_by_file_then_should_load_value_from_env() {
 		Jail::expect_with(|jail| {
-			jail.set_env("PD_GROUPS__FOO__AFFINITY", r#"["a", "b"]"#);
+			jail.set_env("PD_GROUPS_FOO_AFFINITY", r#"["a", "b"]"#);
 
 			let config = Config::load()?;
 
@@ -215,6 +229,7 @@ mod tests {
 				node_selector: None,
 				affinity: Some(vec!["a".into(), "b".into()]),
 				tolerations: None,
+				on_conflict: Default::default(),
 			});
 
 			assert_eq!(config, Config { groups, server: Default::default() });
