@@ -17,6 +17,7 @@ mod tests {
 	use axum::http::{Request, StatusCode};
 	use serde_json::{json, Value};
 	use tower::ServiceExt;
+	use http_body_util::BodyExt;
 	use crate::config::Config;
 	use crate::server;
 
@@ -33,7 +34,7 @@ mod tests {
 			.unwrap();
 
 		assert_eq!(response.status(), StatusCode::OK);
-		let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+		let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
 		let body: Value = serde_json::from_slice(&body_bytes).unwrap();
 		assert_eq!(body, json!({"status": "ok"}));
 	}

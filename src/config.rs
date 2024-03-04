@@ -86,6 +86,7 @@ pub struct GroupConfig {
 	pub node_selector: Option<HashMap<String, String>>,
 	pub affinity: Option<Vec<String>>,
 	pub tolerations: Option<Vec<String>>,
+	#[serde(default)]
 	pub on_conflict: Conflict,
 }
 
@@ -94,7 +95,7 @@ mod tests {
 	use std::collections::HashMap;
 	use figment::Jail;
 	use indoc::indoc;
-	use super::{Config, DEFAULT_CONFIG_FILE, ENV_CONFIG_FILE, GroupConfig};
+	use super::{Config, Conflict, DEFAULT_CONFIG_FILE, ENV_CONFIG_FILE, GroupConfig};
 
 	#[test]
 	fn given_valid_config_file_at_default_path_then_should_be_loaded() {
@@ -114,6 +115,7 @@ mod tests {
 				    nodeSelector: {"a": "1", "b": "2", "c": "3"}
 				    tolerations: ["1", "2"]
 				    affinity: []
+				    onConflict: Override
 			"# })?;
 
 			let config = Config::load()?;
@@ -149,7 +151,7 @@ mod tests {
 				])),
 				affinity: Some(vec![]),
 				tolerations: Some(vec!["1".into(), "2".into()]),
-				on_conflict: Default::default(),
+				on_conflict: Conflict::Override,
 			});
 
 			assert_eq!(config, Config { groups, server: Default::default() });
