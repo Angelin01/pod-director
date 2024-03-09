@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -10,13 +9,13 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 use serde_json::json;
 
-use crate::config::{Config, Conflict};
-use crate::service::kubernetes;
+use crate::config::Conflict;
+use crate::server::AppState;
+use crate::service::kubernetes::KubernetesService;
 use crate::utils::patch;
 
-#[axum::debug_handler]
-pub async fn mutate_handler(
-	State(config): State<Arc<Config>>,
+pub async fn mutate<S: AppState>(
+	State(app_state): State<S>,
 	Json(body): Json<AdmissionReview<Pod>>,
 ) -> impl IntoResponse {
 	let request: AdmissionRequest<Pod> = match body.try_into() {
@@ -44,7 +43,7 @@ pub async fn mutate_handler(
 		Some(ref v) => v,
 	};
 
-	let group = match kubernetes::namespace_group(namespace).await {
+	let group = match app_state.kubernetes().namespace_group(namespace).await {
 		Err(err) => {
 			// TODO: Should probably have a custom error return
 			println!("Couldn't get namespace: {err:?}");
@@ -65,7 +64,7 @@ pub async fn mutate_handler(
 	};
 
 	let mut patches = Vec::new();
-	match &config.groups.get(&group) {
+	match &app_state.config().groups.get(&group) {
 		None => {
 			let reason = format!(
 				"No pod-director group configured with the name {group}, the namespace {namespace} is misconfigured"

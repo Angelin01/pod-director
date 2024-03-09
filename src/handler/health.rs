@@ -1,30 +1,36 @@
 use axum::Json;
+use axum::response::IntoResponse;
 use serde::Serialize;
 
-pub async fn health_handler() -> Json<HealthResponse> {
+pub async fn health() -> impl IntoResponse {
 	Json(HealthResponse { status: "ok".into() })
 }
 
 #[derive(Serialize)]
-pub struct HealthResponse {
+struct HealthResponse {
 	status: String,
 }
 
 #[cfg(test)]
 mod tests {
 	use std::sync::Arc;
+
 	use axum::body::Body;
 	use axum::http::{Request, StatusCode};
+	use axum::Router;
+	use axum::routing::get;
+	use http_body_util::BodyExt;
 	use serde_json::{json, Value};
 	use tower::ServiceExt;
-	use http_body_util::BodyExt;
+
+	use crate::handler;
 	use crate::config::Config;
-	use crate::server;
 
 	#[tokio::test]
 	async fn health_test() {
 		let config = Arc::new(Config::default());
-		let app = server::build_app(config);
+		let app = Router::new()
+			.route("/health", get(handler::health));
 
 		let request = Request::builder().uri("/health").body(Body::empty()).unwrap();
 
