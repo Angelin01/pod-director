@@ -32,3 +32,38 @@ impl AppState for StandardAppState {
 		&self.kubernetes
 	}
 }
+
+#[cfg(test)]
+pub mod tests {
+	use std::sync::Arc;
+	use crate::config::Config;
+	use crate::server::AppState;
+	use crate::service::kubernetes::tests::MockKubernetesService;
+
+	#[derive(Clone)]
+	pub struct TestAppState {
+		config: Arc<Config>,
+		pub kubernetes: MockKubernetesService,
+	}
+
+	impl TestAppState {
+		pub fn new(config: Config) -> Self {
+			Self {
+				config: Arc::new(config),
+				kubernetes: MockKubernetesService::new()
+			}
+		}
+	}
+
+	impl AppState for TestAppState {
+		type K = MockKubernetesService;
+
+		fn config(&self) -> &Config {
+			&self.config
+		}
+
+		fn kubernetes(&self) -> &Self::K {
+			&self.kubernetes
+		}
+	}
+}

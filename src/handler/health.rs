@@ -13,24 +13,19 @@ struct HealthResponse {
 
 #[cfg(test)]
 mod tests {
-	use std::sync::Arc;
-
 	use axum::body::Body;
 	use axum::http::{Request, StatusCode};
-	use axum::Router;
-	use axum::routing::get;
 	use http_body_util::BodyExt;
 	use serde_json::{json, Value};
 	use tower::ServiceExt;
 
-	use crate::handler;
 	use crate::config::Config;
+	use crate::server;
+	use crate::server::state::tests::TestAppState;
 
 	#[tokio::test]
 	async fn health_test() {
-		let config = Arc::new(Config::default());
-		let app = Router::new()
-			.route("/health", get(handler::health));
+		let app = server::build_app(TestAppState::new(Config::default()));
 
 		let request = Request::builder().uri("/health").body(Body::empty()).unwrap();
 

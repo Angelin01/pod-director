@@ -37,3 +37,43 @@ impl KubernetesService for StandardKubernetesService {
 		Ok(result)
 	}
 }
+
+#[cfg(test)]
+pub mod tests {
+	use std::collections::BTreeMap;
+	use axum::async_trait;
+	use crate::service::kubernetes::KubernetesService;
+
+	#[derive(Clone)]
+	pub struct MockKubernetesService {
+		namespace_group_map: BTreeMap<String, String>,
+		error: bool,
+	}
+
+	impl MockKubernetesService {
+		pub fn new() -> Self {
+			MockKubernetesService {
+				namespace_group_map: BTreeMap::new(),
+				error: false,
+			}
+		}
+		pub fn set_namespace_group<S: AsRef<str>, R: AsRef<str>>(&mut self, namespace: S, group: R) {
+			self.namespace_group_map.insert(namespace.as_ref().into(), group.as_ref().into());
+		}
+
+		pub fn set_error(&mut self) {
+			self.error = true;
+		}
+	}
+
+	#[async_trait]
+	impl KubernetesService for MockKubernetesService {
+		async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> anyhow::Result<Option<String>> {
+			if self.error {
+				return Err(anyhow::Error::msg("Kubernetes error".to_owned()));
+			}
+
+			Ok(self.namespace_group_map.get(namespace.as_ref()).map(String::to_owned))
+		}
+	}
+}

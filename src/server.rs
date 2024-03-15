@@ -11,9 +11,9 @@ use crate::service::kubernetes::StandardKubernetesService;
 
 mod tls;
 mod shutdown;
-mod state;
+pub mod state;
 
-fn build_app<S: AppState>(state: S) -> Router {
+pub fn build_app<S: AppState>(state: S) -> Router {
 	Router::new()
 		.route("/health", get(handler::health))
 		.route("/mutate", post(handler::mutate::<S>))

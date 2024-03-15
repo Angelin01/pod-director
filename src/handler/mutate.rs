@@ -138,3 +138,55 @@ fn calculate_node_selector_patches(
 
 	patches
 }
+
+#[cfg(test)]
+mod tests {
+	use std::path::PathBuf;
+
+	use axum::body::Body;
+	use axum::http::{Request, StatusCode};
+	use http_body_util::BodyExt;
+	use kube::api::DynamicObject;
+	use kube::core::admission::AdmissionReview;
+	use tokio::fs::File;
+	use tokio_util::io::ReaderStream;
+	use tower::ServiceExt;
+
+	use crate::config::Config;
+	use crate::server;
+	use crate::server::state::tests::TestAppState;
+
+	#[tokio::test]
+	async fn when_namespace_config_does_not_match_any_group_should_deny_pod() {
+		let mut state = TestAppState::new(Config::default());
+		state.kubernetes.set_namespace_group("foo", "bar");
+
+		let app = server::build_app(state);
+
+		let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+		path.push("resources/test/request-reduced.json");
+		let file = File::open(path).await.unwrap();
+		let reader = ReaderStream::new(file);
+
+		let body = Body::from_stream(reader);
+
+		let request = Request::builder()
+			.uri("/mutate")
+			.header("Content-Type", "application/json")
+			.method("POST")
+			.body(body)
+			.unwrap();
+
+		let response = app
+			.oneshot(request)
+			.await
+			.unwrap();
+
+		assert_eq!(response.status(), StatusCode::OK);
+		let response_bytes = response.into_body().collect().await.unwrap().to_bytes();
+		let parsed_review: AdmissionReview<DynamicObject> = serde_json::from_slice(&response_bytes).unwrap();
+		let parsed_response = parsed_review.response.unwrap();
+		eprintln!("{parsed_response:?}");
+		assert_eq!(parsed_response.allowed, false);
+	}
+}

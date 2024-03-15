@@ -6,6 +6,8 @@ mod server;
 mod service;
 mod utils;
 mod handler;
+#[cfg(test)]
+mod test_utils;
 
 #[tokio::main]
 async fn main() {
