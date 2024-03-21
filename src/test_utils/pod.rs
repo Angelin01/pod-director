@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use axum::body::Body;
-use serde_json::{json, Value};
+use serde_json::json;
 
 pub struct PodCreateRequestBuilder {
 	namespace: Option<String>,
