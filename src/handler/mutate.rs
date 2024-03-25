@@ -121,15 +121,11 @@ fn calculate_node_selector_patches(
 					}
 
 					match conflict_config {
-						Conflict::Ignore => {
-							println!("Conflict found! As 'on_conflict' is set to 'ignore', the original value will be kept.");
-						}
+						Conflict::Ignore => (),
 						Conflict::Override => {
-							println!("Conflict found! As 'on_conflict' is set to 'override', the original value will be overriden.");
 							patches.push(patch::replace(format!("/spec/nodeSelector/{k}"), json!(v)));
 						}
 						Conflict::Reject => {
-							println!("Conflict found! As 'on_conflict' is set to 'refuse', the entire operation will halt.");
 							break;
 						}
 					}
@@ -377,6 +373,109 @@ mod tests {
 		assert_eq!(result.admission_response.allowed, true);
 
 		assert!(result.patches.is_empty());
+	}
+
+	#[tokio::test]
+	async fn when_pod_has_conflicting_node_selector_and_config_is_ignore_should_ignore_label() {
+		let mut config = Config::default();
+		let group_config = GroupConfig {
+			node_selector: Some(HashMap::from([
+				("label-0".into(), "value-0".into()),
+				("label-1".into(), "value-1".into()),
+			])),
+			affinity: None,
+			tolerations: None,
+			on_conflict: Conflict::Ignore,
+		};
+		config.groups = HashMap::from([
+			("bar".into(), group_config)
+		]);
+
+		let mut state = TestAppState::new(config);
+		state.kubernetes.set_namespace_group("foo", "bar");
+
+		let body = PodCreateRequestBuilder::new()
+			.with_namespace("foo")
+			.with_node_selector("label-0", "conflicting-value")
+			.build();
+
+		let response = mutate_request(state, body).await;
+		let result = ParsedResponse::from_response(response).await;
+		assert_eq!(result.status, StatusCode::OK);
+		assert_eq!(result.admission_response.allowed, true);
+
+		let expected_patches = vec![
+			patch::add("/spec/nodeSelector/label-1".into(), "value-1".into())
+		];
+
+		assert_eq!(result.patches, expected_patches);
+	}
+
+	#[tokio::test]
+	async fn when_pod_has_conflicting_node_selector_and_config_is_override_should_replace_label() {
+		let mut config = Config::default();
+		let group_config = GroupConfig {
+			node_selector: Some(HashMap::from([
+				("label-0".into(), "value-0".into()),
+				("label-1".into(), "value-1".into()),
+			])),
+			affinity: None,
+			tolerations: None,
+			on_conflict: Conflict::Override,
+		};
+		config.groups = HashMap::from([
+			("bar".into(), group_config)
+		]);
+
+		let mut state = TestAppState::new(config);
+		state.kubernetes.set_namespace_group("foo", "bar");
+
+		let body = PodCreateRequestBuilder::new()
+			.with_namespace("foo")
+			.with_node_selector("label-0", "conflicting-value")
+			.build();
+
+		let response = mutate_request(state, body).await;
+		let result = ParsedResponse::from_response(response).await;
+		assert_eq!(result.status, StatusCode::OK);
+		assert_eq!(result.admission_response.allowed, true);
+
+		assert!(result.patches.contains(&patch::replace("/spec/nodeSelector/label-0".into(), "value-0".into())));
+		assert!(result.patches.contains(&patch::add("/spec/nodeSelector/label-1".into(), "value-1".into())));
+	}
+
+	#[tokio::test]
+	async fn when_pod_has_conflicting_node_selector_and_config_is_reject_should_reject_pod() {
+		let mut config = Config::default();
+		let group_config = GroupConfig {
+			node_selector: Some(HashMap::from([
+				("label-0".into(), "value-0".into()),
+				("label-1".into(), "value-1".into()),
+			])),
+			affinity: None,
+			tolerations: None,
+			on_conflict: Conflict::Reject,
+		};
+		config.groups = HashMap::from([
+			("bar".into(), group_config)
+		]);
+
+		let mut state = TestAppState::new(config);
+		state.kubernetes.set_namespace_group("foo", "bar");
+
+		let body = PodCreateRequestBuilder::new()
+			.with_namespace("foo")
+			.with_node_selector("label-0", "conflicting-value")
+			.build();
+
+		let response = mutate_request(state, body).await;
+		let result = ParsedResponse::from_response(response).await;
+		assert_eq!(result.status, StatusCode::OK);
+		assert_eq!(result.admission_response.allowed, false);
+		assert_eq!(
+			result.admission_response.result.message,
+			"The pod's nodeSelector label-0=conflicting-value conflicts with pod-director's configuration label-0=value-0"
+		);
 	}
 
 	// TODO: test conflicts
