@@ -20,20 +20,20 @@ pub fn replace(path: String, value: Value) -> PatchOperation {
 	})
 }
 
-pub enum PatchResult {
+pub enum PatchResult<'a> {
 	Allow(Vec<PatchOperation>),
 	Deny {
-		label: String,
-		config_value: String,
-		conflicting_value: String,
+		label: &'a str,
+		config_value: &'a str,
+		conflicting_value: &'a str,
 	},
 }
 
-pub fn calculate_node_selector_patches(
-	pod: &Pod,
-	node_selector_config: &HashMap<String, String>,
-	conflict_config: &Conflict,
-) -> PatchResult {
+pub fn calculate_node_selector_patches<'a>(
+	pod: &'a Pod,
+	node_selector_config: &'a HashMap<String, String>,
+	conflict_config: &'a Conflict,
+) -> PatchResult<'a> {
 	let mut patches = Vec::new();
 
 	let maybe_node_selector = pod.spec.as_ref()
@@ -49,9 +49,9 @@ pub fn calculate_node_selector_patches(
 					Conflict::Override => patches.push(replace(format!("/spec/nodeSelector/{k}"), json!(v))),
 					Conflict::Reject => {
 						return PatchResult::Deny {
-							label: k.into(),
-							config_value: v.into(),
-							conflicting_value: existing_value.into(),
+							label: k.as_str(),
+							config_value: v.as_str(),
+							conflicting_value: existing_value.as_str(),
 						};
 					}
 				},
