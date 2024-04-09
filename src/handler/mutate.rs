@@ -4,6 +4,7 @@ use axum::Json;
 use axum::response::IntoResponse;
 use k8s_openapi::api::core::v1::Pod;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
+
 use crate::server::AppState;
 use crate::service::kubernetes::KubernetesService;
 use crate::utils::patch;
@@ -59,38 +60,43 @@ pub async fn mutate<S: AppState>(
 	};
 
 	let mut patches = Vec::new();
-	match &app_state.config().groups.get(&group) {
+	let group_config = match app_state.config().groups.get(&group) {
 		None => {
 			let reason = format!(
 				"No pod-director group configured with the name {group}, the namespace {namespace} is misconfigured"
 			);
-
 			return (
 				StatusCode::OK,
 				Json(AdmissionResponse::from(&request).deny(reason).into_review()),
 			);
 		}
-		Some(ref group_config) => {
-			if let Some(node_selector_config) = &group_config.node_selector {
-				let node_selector_patches = patch::calculate_node_selector_patches(
-					request.object.as_ref().unwrap(),
-					&node_selector_config,
-					&group_config.on_conflict,
-				);
+		Some(group_config) => group_config,
+	};
 
-				match node_selector_patches {
-					PatchResult::Allow(v) => patches.extend(v),
-					PatchResult::Deny { label, config_value, conflicting_value } => {
-						let reason = format!("The pod's nodeSelector {label}={conflicting_value} conflicts with pod-director's configuration {label}={config_value}");
-						return (
-							StatusCode::OK,
-							Json(AdmissionResponse::from(&request).deny(reason).into_review()),
-						);
-					}
-				}
+	if let Some(node_selector_config) = &group_config.node_selector {
+		let node_selector_patches = patch::calculate_node_selector_patches(
+			request.object.as_ref().expect("Request object is missing"),
+			node_selector_config,
+			&group_config.on_conflict,
+		);
+
+		match node_selector_patches {
+			PatchResult::Allow(v) => patches.extend(v),
+			PatchResult::Deny {
+				label,
+				config_value,
+				conflicting_value,
+			} => {
+				let reason = format!(
+					"The pod's nodeSelector {label}={conflicting_value} conflicts with pod-director's configuration {label}={config_value}"
+				);
+				return (
+					StatusCode::OK,
+					Json(AdmissionResponse::from(&request).deny(reason).into_review()),
+				);
 			}
 		}
-	};
+	}
 
 	(
 		StatusCode::OK,
@@ -106,6 +112,7 @@ pub async fn mutate<S: AppState>(
 #[cfg(test)]
 mod tests {
 	use std::collections::HashMap;
+
 	use axum::body::Body;
 	use axum::http::{Request, StatusCode};
 	use axum::response::Response;
@@ -196,7 +203,7 @@ mod tests {
 
 		let expected_patches = vec![
 			patch::add("/spec/nodeSelector".into(), json!({})),
-			patch::add("/spec/nodeSelector/some-label".into(), "some-value".into())
+			patch::add("/spec/nodeSelector/some-label".into(), "some-value".into()),
 		];
 
 		assert_eq!(result.patches, expected_patches);
