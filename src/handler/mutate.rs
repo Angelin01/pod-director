@@ -1,18 +1,13 @@
-use std::collections::HashMap;
-
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
 use axum::response::IntoResponse;
-use json_patch::PatchOperation;
 use k8s_openapi::api::core::v1::Pod;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
-use serde_json::json;
-
-use crate::config::Conflict;
 use crate::server::AppState;
 use crate::service::kubernetes::KubernetesService;
 use crate::utils::patch;
+use crate::utils::patch::PatchResult;
 
 pub async fn mutate<S: AppState>(
 	State(app_state): State<S>,
@@ -77,11 +72,22 @@ pub async fn mutate<S: AppState>(
 		}
 		Some(ref group_config) => {
 			if let Some(node_selector_config) = &group_config.node_selector {
-				patches.extend(calculate_node_selector_patches(
+				let node_selector_patches = patch::calculate_node_selector_patches(
 					request.object.as_ref().unwrap(),
 					&node_selector_config,
 					&group_config.on_conflict,
-				));
+				);
+
+				match node_selector_patches {
+					PatchResult::Allow(v) => patches.extend(v),
+					PatchResult::Deny { label, config_value, conflicting_value } => {
+						let reason = format!("The pod's nodeSelector {label}={conflicting_value} conflicts with pod-director's configuration {label}={config_value}");
+						return (
+							StatusCode::OK,
+							Json(AdmissionResponse::from(&request).deny(reason).into_review()),
+						);
+					}
+				}
 			}
 		}
 	};
@@ -95,49 +101,6 @@ pub async fn mutate<S: AppState>(
 				.into_review(),
 		),
 	)
-}
-
-fn calculate_node_selector_patches(
-	pod: &Pod,
-	node_selector_config: &HashMap<String, String>,
-	conflict_config: &Conflict,
-) -> Vec<PatchOperation> {
-	let mut patches = Vec::new();
-
-	let maybe_node_selector = &pod.spec.as_ref().unwrap().node_selector;
-
-	match maybe_node_selector.as_ref() {
-		None => {
-			patches.push(patch::add("/spec/nodeSelector".into(), json!({})));
-			node_selector_config.iter().for_each(|(k, v)| {
-				patches.push(patch::add(format!("/spec/nodeSelector/{k}"), json!(v)));
-			})
-		}
-		Some(node_selector) => {
-			for (k, v) in node_selector_config.iter() {
-				if let Some(existing_value) = node_selector.get(k) {
-					if existing_value == v {
-						continue
-					}
-
-					match conflict_config {
-						Conflict::Ignore => (),
-						Conflict::Override => {
-							patches.push(patch::replace(format!("/spec/nodeSelector/{k}"), json!(v)));
-						}
-						Conflict::Reject => {
-							break;
-						}
-					}
-				}
-				else {
-					patches.push(patch::add(format!("/spec/nodeSelector/{k}"), json!(v)));
-				}
-			}
-		}
-	}
-
-	patches
 }
 
 #[cfg(test)]
