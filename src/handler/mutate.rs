@@ -441,6 +441,17 @@ mod tests {
 		);
 	}
 
-	// TODO: test conflicts
-	// TODO: test k8s error
+	#[tokio::test]
+	async fn when_fails_fetching_label_for_namespace_should_return_internal_server_error() {
+		let mut state = TestAppState::new(Config::default());
+		state.kubernetes.set_error();
+
+		let body = PodCreateRequestBuilder::new()
+			.with_namespace("foo")
+			.build();
+
+		let response = mutate_request(state, body).await;
+		let result = ParsedResponse::from_response(response).await;
+		assert_eq!(result.status, StatusCode::INTERNAL_SERVER_ERROR);
+	}
 }
