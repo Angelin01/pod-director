@@ -1,11 +1,13 @@
-use anyhow::{Error, Result};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
+
+use anyhow::{Error, Result};
 use axum_server::tls_rustls::RustlsConfig;
-use figment::{Figment, error, providers::{Env, Format, Yaml}};
+use figment::{error, Figment, providers::{Env, Format, Yaml}};
 use figment::providers::Serialized;
 use serde::{Deserialize, Serialize};
+
 use crate::error::ConfigError;
 
 static ENV_PREFIX: &'static str = "PD_";
@@ -28,7 +30,7 @@ pub enum Conflict {
 	Ignore,
 	Override,
 	#[default]
-	Reject
+	Reject,
 }
 
 #[derive(Deserialize, Serialize, Default, Debug)]
@@ -93,8 +95,10 @@ pub struct GroupConfig {
 #[cfg(test)]
 mod tests {
 	use std::collections::HashMap;
+
 	use figment::Jail;
 	use indoc::indoc;
+
 	use super::{Config, Conflict, DEFAULT_CONFIG_FILE, ENV_CONFIG_FILE, GroupConfig};
 
 	#[test]
