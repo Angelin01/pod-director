@@ -6,7 +6,7 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 
 use crate::server::AppState;
-use crate::service::kubernetes::KubernetesService;
+use crate::service::KubernetesService;
 use crate::utils::patch;
 use crate::utils::patch::PatchResult;
 

@@ -7,7 +7,8 @@ use crate::config::Config;
 use super::handler;
 
 pub use state::{AppState, StandardAppState};
-use crate::service::kubernetes::StandardKubernetesService;
+
+use crate::service::StandardKubernetesService;
 
 mod tls;
 mod shutdown;

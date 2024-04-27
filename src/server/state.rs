@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use crate::config::Config;
-use crate::service::kubernetes::{KubernetesService, StandardKubernetesService};
+use crate::service::{KubernetesService, StandardKubernetesService};
 
 pub trait AppState: Clone + Send + Sync + 'static {
 	type K: KubernetesService;
@@ -38,7 +38,7 @@ pub mod tests {
 	use std::sync::Arc;
 	use crate::config::Config;
 	use crate::server::AppState;
-	use crate::service::kubernetes::tests::MockKubernetesService;
+	use crate::service::tests::MockKubernetesService;
 
 	#[derive(Clone)]
 	pub struct TestAppState {
