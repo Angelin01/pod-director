@@ -1,4 +1,3 @@
-use anyhow::Result;
 use axum::async_trait;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{Api, Client, ResourceExt};
@@ -7,7 +6,7 @@ const LABEL: &str = "pod-director/group";
 
 #[async_trait]
 pub trait KubernetesService: Send + Sync + Clone {
-	async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> Result<Option<String>>;
+	async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> Result<Option<String>, kube::error::Error>;
 }
 
 #[derive(Clone)]
@@ -16,7 +15,7 @@ pub struct StandardKubernetesService {
 }
 
 impl StandardKubernetesService {
-	pub async fn new() -> Result<Self> {
+	pub async fn new() -> anyhow::Result<Self> {
 		Ok(StandardKubernetesService {
 			api: Api::all(Client::try_default().await?),
 		})
@@ -26,7 +25,7 @@ impl StandardKubernetesService {
 // TODO: Use a watcher or reconciller to watch events and avoid callin the API every time
 #[async_trait]
 impl KubernetesService for StandardKubernetesService {
-	async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> Result<Option<String>> {
+	async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> Result<Option<String>, kube::error::Error> {
 		let namespace = self.api.get(namespace.as_ref()).await?;
 
 		let result = match namespace.labels().get(LABEL) {
@@ -42,6 +41,7 @@ impl KubernetesService for StandardKubernetesService {
 pub mod tests {
 	use std::collections::BTreeMap;
 	use axum::async_trait;
+	use kube::error::ErrorResponse;
 	use crate::service::kubernetes::KubernetesService;
 
 	#[derive(Clone)]
@@ -68,9 +68,14 @@ pub mod tests {
 
 	#[async_trait]
 	impl KubernetesService for MockKubernetesService {
-		async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> anyhow::Result<Option<String>> {
+		async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> Result<Option<String>, kube::error::Error> {
 			if self.error {
-				return Err(anyhow::Error::msg("Kubernetes error".to_owned()));
+				return Err(kube::error::Error::Api(ErrorResponse {
+					code: 400,
+					message: "Some Kubernetes error".into(),
+					reason: "Some reason".into(),
+					status: "Failed".into(),
+				}));
 			}
 
 			Ok(self.namespace_group_map.get(namespace.as_ref()).map(String::to_owned))
