@@ -1,78 +1,40 @@
 use axum::extract::State;
-use axum::http::StatusCode;
 use axum::Json;
-use axum::response::IntoResponse;
+use axum::response::Result;
 use k8s_openapi::api::core::v1::Pod;
+use kube::api::DynamicObject;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 
+use crate::error::ResponseError;
 use crate::server::AppState;
-use crate::service::kubernetes::KubernetesService;
+use crate::service::KubernetesService;
 use crate::utils::patch;
 use crate::utils::patch::PatchResult;
 
 pub async fn mutate<S: AppState>(
 	State(app_state): State<S>,
 	Json(body): Json<AdmissionReview<Pod>>,
-) -> impl IntoResponse {
-	let request: AdmissionRequest<Pod> = match body.try_into() {
-		Err(err) => {
-			// TODO: Should probably have a custom error return
-			println!("Bad request");
-			return (
-				StatusCode::BAD_REQUEST,
-				Json(AdmissionResponse::invalid(err).into_review()),
-			);
-		}
-		Ok(v) => v,
+) -> Result<Json<AdmissionReview<DynamicObject>>, ResponseError> {
+	let request: AdmissionRequest<Pod> = body.try_into()?;
+
+	let namespace = request.namespace.as_ref().ok_or(ResponseError::NoNamespace)?;
+
+	let group = match app_state.kubernetes().namespace_group(namespace).await? {
+		Some(g) => g,
+		None => return Err(ResponseError::NamespaceMissingLabel {
+			request,
+		}),
 	};
 
-	let namespace = match request.namespace {
-		None => {
-			return (
-				StatusCode::OK,
-				Json(
-					AdmissionResponse::invalid("Pod has no namespace defined (this is unexpected)")
-						.into_review(),
-				),
-			);
-		}
-		Some(ref v) => v,
-	};
-
-	let group = match app_state.kubernetes().namespace_group(namespace).await {
-		Err(err) => {
-			// TODO: Should probably have a custom error return
-			println!("Couldn't get namespace: {err:?}");
-			return (
-				StatusCode::INTERNAL_SERVER_ERROR,
-				Json(AdmissionResponse::from(&request).into_review()),
-			);
-		}
-		Ok(v) => match v {
-			None => {
-				let warning = format!("processed pod's namespace {namespace} doesn't contain a pod-director group label, the MutatingWebhookConfiguration is probably misconfigured");
-				let mut response = AdmissionResponse::from(&request);
-				response.warnings = Some(vec![warning]);
-				return (StatusCode::OK, Json(response.into_review()));
-			}
-			Some(g) => g,
-		},
+	let group_config = match app_state.config().groups.get(&group) {
+		Some(group_config) => group_config,
+		None => return Err(ResponseError::MissingGroupConfig {
+			request,
+			group,
+		}),
 	};
 
 	let mut patches = Vec::new();
-	let group_config = match app_state.config().groups.get(&group) {
-		None => {
-			let reason = format!(
-				"No pod-director group configured with the name {group}, the namespace {namespace} is misconfigured"
-			);
-			return (
-				StatusCode::OK,
-				Json(AdmissionResponse::from(&request).deny(reason).into_review()),
-			);
-		}
-		Some(group_config) => group_config,
-	};
-
 	if let Some(node_selector_config) = &group_config.node_selector {
 		let node_selector_patches = patch::calculate_node_selector_patches(
 			request.object.as_ref().expect("Request object is missing"),
@@ -82,31 +44,21 @@ pub async fn mutate<S: AppState>(
 
 		match node_selector_patches {
 			PatchResult::Allow(v) => patches.extend(v),
-			PatchResult::Deny {
-				label,
-				config_value,
-				conflicting_value,
-			} => {
+			PatchResult::Deny { label, config_value, conflicting_value } => {
 				let reason = format!(
 					"The pod's nodeSelector {label}={conflicting_value} conflicts with pod-director's configuration {label}={config_value}"
 				);
-				return (
-					StatusCode::OK,
-					Json(AdmissionResponse::from(&request).deny(reason).into_review()),
-				);
+				return Ok(Json(AdmissionResponse::from(&request).deny(reason).into_review()));
 			}
 		}
 	}
 
-	(
-		StatusCode::OK,
-		Json(
-			AdmissionResponse::from(&request)
-				.with_patch(json_patch::Patch(patches))
-				.unwrap()
-				.into_review(),
-		),
-	)
+	Ok(Json(
+		AdmissionResponse::from(&request)
+			.with_patch(json_patch::Patch(patches))
+			.unwrap()
+			.into_review(),
+	))
 }
 
 #[cfg(test)]
