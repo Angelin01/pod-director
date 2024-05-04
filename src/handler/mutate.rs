@@ -34,12 +34,16 @@ pub async fn mutate<S: AppState>(
 		}),
 	};
 
+	let pod_spec = request.object.as_ref()
+		.expect("Request object is missing")
+		.spec.as_ref()
+		.expect("Pod spec is missing");
+
 	let mut patches = Vec::new();
-	let pod = request.object.as_ref().expect("Request object is missing");
 
 	if let Some(node_selector_config) = &group_config.node_selector {
 		let node_selector_patches = patch::calculate_node_selector_patches(
-			pod,
+			pod_spec,
 			node_selector_config,
 			&group_config.on_conflict,
 		);
@@ -56,7 +60,7 @@ pub async fn mutate<S: AppState>(
 	}
 
 	if let Some(tolerations_config) = &group_config.tolerations {
-		let toleration_patches = patch::calculate_toleration_patches(pod, tolerations_config);
+		let toleration_patches = patch::calculate_toleration_patches(pod_spec, tolerations_config);
 		patches.extend(toleration_patches);
 	}
 
