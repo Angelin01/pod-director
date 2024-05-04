@@ -6,6 +6,7 @@ use anyhow::{Error, Result};
 use axum_server::tls_rustls::RustlsConfig;
 use figment::{error, Figment, providers::{Env, Format, Yaml}};
 use figment::providers::Serialized;
+use k8s_openapi::api::core::v1::Toleration;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ConfigError;
@@ -87,7 +88,7 @@ impl Default for ServerConfig {
 pub struct GroupConfig {
 	pub node_selector: Option<HashMap<String, String>>,
 	pub affinity: Option<Vec<String>>,
-	pub tolerations: Option<Vec<String>>,
+	pub tolerations: Option<Vec<Toleration>>,
 	#[serde(default)]
 	pub on_conflict: Conflict,
 }
@@ -98,6 +99,7 @@ mod tests {
 
 	use figment::Jail;
 	use indoc::indoc;
+	use k8s_openapi::api::core::v1::Toleration;
 
 	use super::{Config, Conflict, DEFAULT_CONFIG_FILE, ENV_CONFIG_FILE, GroupConfig};
 
@@ -112,12 +114,20 @@ mod tests {
 				      b: "2"
 				      c: "3"
 				  bar:
-				    tolerations: ["1", "2"]
+				    tolerations:
+				      - key: foo
+				        operator: Equals
+				        value: bar
+				        effect: NoSchedule
 				  bazz:
 				    affinity: []
 				  all:
 				    nodeSelector: {"a": "1", "b": "2", "c": "3"}
-				    tolerations: ["1", "2"]
+				    tolerations:
+				      - key: foo
+				        operator: Equals
+				        value: bar
+				        effect: NoSchedule
 				    affinity: []
 				    onConflict: Override
 			"# })?;
@@ -138,7 +148,14 @@ mod tests {
 			groups.insert("bar".into(), GroupConfig {
 				node_selector: None,
 				affinity: None,
-				tolerations: Some(vec!["1".into(), "2".into()]),
+				tolerations: Some(vec![Toleration {
+					effect: Some("NoSchedule".into()),
+					key: Some("foo".into()),
+					operator: Some("Equals".into()),
+					toleration_seconds: None,
+					value: Some("bar".into()),
+				}
+				]),
 				on_conflict: Default::default(),
 			});
 			groups.insert("bazz".into(), GroupConfig {
@@ -154,7 +171,14 @@ mod tests {
 					("c".into(), "3".into()),
 				])),
 				affinity: Some(vec![]),
-				tolerations: Some(vec!["1".into(), "2".into()]),
+				tolerations: Some(vec![Toleration {
+					effect: Some("NoSchedule".into()),
+					key: Some("foo".into()),
+					operator: Some("Equals".into()),
+					toleration_seconds: None,
+					value: Some("bar".into()),
+				}
+				]),
 				on_conflict: Conflict::Override,
 			});
 
