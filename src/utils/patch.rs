@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use json_patch::PatchOperation;
-use k8s_openapi::api::core::v1::Pod;
+use k8s_openapi::api::core::v1::{Pod, Toleration};
 use serde_json::{json, Value};
 
 use crate::config::Conflict;
@@ -37,10 +37,10 @@ pub fn calculate_node_selector_patches<'a>(
 	let mut patches = Vec::new();
 
 	let maybe_node_selector = pod.spec.as_ref()
-		.map_or(None, |spec| spec.node_selector.as_ref());
+		.and_then(|s| s.node_selector.as_ref());
 
 	if let Some(node_selector) = maybe_node_selector {
-		for (k, v) in node_selector_config.iter() {
+		for (k, v) in node_selector_config {
 			match node_selector.get(k) {
 				None => patches.push(add(format!("/spec/nodeSelector/{k}"), json!(v))),
 				Some(existing_value) if existing_value == v => continue,
@@ -59,10 +59,33 @@ pub fn calculate_node_selector_patches<'a>(
 		}
 	} else {
 		patches.push(add("/spec/nodeSelector".into(), json!({})));
-		node_selector_config.iter().for_each(|(k, v)| {
+		for (k, v) in node_selector_config {
 			patches.push(add(format!("/spec/nodeSelector/{k}"), json!(v)));
-		});
+		};
 	}
 
 	PatchResult::Allow(patches)
+}
+
+pub fn calculate_toleration_patches(pod: &Pod, tolerations_config: &[Toleration]) -> Vec<PatchOperation> {
+	let mut patches = Vec::new();
+
+	let maybe_tolerations = pod.spec.as_ref()
+		.and_then(|s| s.tolerations.as_ref());
+
+	if let Some(tolerations) = maybe_tolerations {
+		tolerations_config.iter()
+			.filter(|t| !tolerations.contains(t))
+			.for_each(|t| patches.push(
+				add("/spec/tolerations/-".into(), json!(t))
+			));
+	}
+	else {
+		patches.push(add("/spec/tolerations".into(), json!([])));
+		for t in tolerations_config {
+			patches.push(add("/spec/tolerations/-".into(), json!(t)))
+		}
+	}
+
+	patches
 }
