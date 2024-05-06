@@ -1,15 +1,17 @@
 use std::collections::BTreeMap;
 use axum::body::Body;
+use k8s_openapi::api::core::v1::Toleration;
 use serde_json::json;
 
 pub struct PodCreateRequestBuilder {
 	namespace: Option<String>,
 	node_selector: Option<BTreeMap<String, String>>,
+	tolerations: Option<Vec<Toleration>>
 }
 
 impl PodCreateRequestBuilder {
 	pub fn new() -> Self {
-		Self { namespace: None, node_selector: None }
+		Self { namespace: None, node_selector: None, tolerations: None }
 	}
 
 	pub fn with_namespace<S: AsRef<str>>(mut self, namespace: S) -> Self {
@@ -20,6 +22,12 @@ impl PodCreateRequestBuilder {
 	pub fn with_node_selector<S: AsRef<str>, R: AsRef<str>>(mut self, label: S, value: R) -> Self {
 		self.node_selector.get_or_insert_with(BTreeMap::new)
 			.insert(label.as_ref().into(), value.as_ref().into());
+		self
+	}
+
+	pub fn with_toleration(mut self, toleration: Toleration) -> Self {
+		self.tolerations.get_or_insert_with(Vec::new)
+			.push(toleration);
 		self
 	}
 
@@ -103,20 +111,7 @@ impl PodCreateRequestBuilder {
 		      "serviceAccount": "default",
 		      "serviceAccountName": "default",
 		      "terminationGracePeriodSeconds": 30,
-		      "tolerations": [
-		        {
-		          "effect": "NoExecute",
-		          "key": "node.kubernetes.io/not-ready",
-		          "operator": "Exists",
-		          "tolerationSeconds": 300
-		        },
-		        {
-		          "effect": "NoExecute",
-		          "key": "node.kubernetes.io/unreachable",
-		          "operator": "Exists",
-		          "tolerationSeconds": 300
-		        }
-		      ],
+		      "tolerations": self.tolerations,
 		      "volumes": []
 		      },
 		      "status": {}

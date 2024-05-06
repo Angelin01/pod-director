@@ -34,10 +34,16 @@ pub async fn mutate<S: AppState>(
 		}),
 	};
 
+	let pod_spec = request.object.as_ref()
+		.expect("Request object is missing")
+		.spec.as_ref()
+		.expect("Pod spec is missing");
+
 	let mut patches = Vec::new();
+
 	if let Some(node_selector_config) = &group_config.node_selector {
 		let node_selector_patches = patch::calculate_node_selector_patches(
-			request.object.as_ref().expect("Request object is missing"),
+			pod_spec,
 			node_selector_config,
 			&group_config.on_conflict,
 		);
@@ -51,6 +57,11 @@ pub async fn mutate<S: AppState>(
 				return Ok(Json(AdmissionResponse::from(&request).deny(reason).into_review()));
 			}
 		}
+	}
+
+	if let Some(tolerations_config) = &group_config.tolerations {
+		let toleration_patches = patch::calculate_toleration_patches(pod_spec, tolerations_config);
+		patches.extend(toleration_patches);
 	}
 
 	Ok(Json(
@@ -68,6 +79,7 @@ mod tests {
 	use axum::body::Body;
 	use axum::http::{Request, StatusCode};
 	use axum::response::Response;
+	use k8s_openapi::api::core::v1::Toleration;
 	use serde_json::json;
 	use tower::ServiceExt;
 
@@ -412,5 +424,214 @@ mod tests {
 		let response = mutate_request(state, body).await;
 		let result = ParsedResponse::from_response(response).await;
 		assert_eq!(result.status, StatusCode::INTERNAL_SERVER_ERROR);
+	}
+
+	#[tokio::test]
+	async fn when_pod_has_no_tolerations_should_insert_tolerations_and_pd_tolerations() {
+		let mut config = Config::default();
+		let group_config = GroupConfig {
+			node_selector: None,
+			affinity: None,
+			tolerations: Some(vec![Toleration {
+				key: Some("some-key".into()),
+				value: Some("some-value".into()),
+				operator: Some("Equals".into()),
+				effect: Some("NoSchedule".into()),
+				toleration_seconds: None,
+			}]),
+			on_conflict: Conflict::Reject,
+		};
+		config.groups = HashMap::from([
+			("bar".into(), group_config)
+		]);
+
+		let mut state = TestAppState::new(config);
+		state.kubernetes.set_namespace_group("foo", "bar");
+
+		let body = PodCreateRequestBuilder::new()
+			.with_namespace("foo")
+			.build();
+
+		let response = mutate_request(state, body).await;
+		let result = ParsedResponse::from_response(response).await;
+		assert_eq!(result.status, StatusCode::OK);
+		assert_eq!(result.admission_response.allowed, true);
+
+		let expected_patches = vec![
+			patch::add("/spec/tolerations".into(), json!([])),
+			patch::add("/spec/tolerations/-".into(), json!({
+				"key": "some-key",
+				"value": "some-value",
+				"operator": "Equals",
+				"effect": "NoSchedule"
+			})),
+		];
+
+		assert_eq!(result.patches, expected_patches);
+	}
+
+	#[tokio::test]
+	async fn when_pod_has_existing_tolerations_not_matching_config_should_only_insert_pd_tolerations() {
+		let mut config = Config::default();
+		let group_config = GroupConfig {
+			node_selector: None,
+			affinity: None,
+			tolerations: Some(vec![Toleration {
+				key: Some("some-key".into()),
+				value: Some("some-value".into()),
+				operator: Some("Equals".into()),
+				effect: Some("NoSchedule".into()),
+				toleration_seconds: None,
+			}]),
+			on_conflict: Conflict::Reject,
+		};
+		config.groups = HashMap::from([
+			("bar".into(), group_config)
+		]);
+
+		let mut state = TestAppState::new(config);
+		state.kubernetes.set_namespace_group("foo", "bar");
+
+		let body = PodCreateRequestBuilder::new()
+			.with_namespace("foo")
+			.with_toleration(Toleration {
+				effect: Some("NoExecute".into()),
+				key: Some("other".into()),
+				operator: Some("Exists".into()),
+				toleration_seconds: None,
+				value: None,
+			})
+			.build();
+
+		let response = mutate_request(state, body).await;
+		let result = ParsedResponse::from_response(response).await;
+		assert_eq!(result.status, StatusCode::OK);
+		assert_eq!(result.admission_response.allowed, true);
+
+		let expected_patches = vec![
+			patch::add("/spec/tolerations/-".into(), json!({
+				"key": "some-key",
+				"value": "some-value",
+				"operator": "Equals",
+				"effect": "NoSchedule"
+			})),
+		];
+
+		assert_eq!(result.patches, expected_patches);
+	}
+
+	#[tokio::test]
+	async fn when_pod_has_existing_tolerations_with_some_matching_config_should_only_insert_necessary_tolerations() {
+		let mut config = Config::default();
+		let group_config = GroupConfig {
+			node_selector: None,
+			affinity: None,
+			tolerations: Some(vec![
+				Toleration {
+					key: Some("some-key".into()),
+					value: Some("some-value".into()),
+					operator: Some("Equals".into()),
+					effect: Some("NoSchedule".into()),
+					toleration_seconds: None,
+				},
+				Toleration {
+					effect: Some("NoExecute".into()),
+					key: Some("other".into()),
+					operator: Some("Exists".into()),
+					toleration_seconds: None,
+					value: None,
+				},
+			]),
+			on_conflict: Conflict::Reject,
+		};
+		config.groups = HashMap::from([
+			("bar".into(), group_config)
+		]);
+
+		let mut state = TestAppState::new(config);
+		state.kubernetes.set_namespace_group("foo", "bar");
+
+		let body = PodCreateRequestBuilder::new()
+			.with_namespace("foo")
+			.with_toleration(Toleration {
+				effect: Some("NoExecute".into()),
+				key: Some("other".into()),
+				operator: Some("Exists".into()),
+				toleration_seconds: None,
+				value: None,
+			})
+			.build();
+
+		let response = mutate_request(state, body).await;
+		let result = ParsedResponse::from_response(response).await;
+		assert_eq!(result.status, StatusCode::OK);
+		assert_eq!(result.admission_response.allowed, true);
+
+		let expected_patches = vec![
+			patch::add("/spec/tolerations/-".into(), json!({
+				"key": "some-key",
+				"value": "some-value",
+				"operator": "Equals",
+				"effect": "NoSchedule"
+			})),
+		];
+
+		assert_eq!(result.patches, expected_patches);
+	}
+
+	#[tokio::test]
+	async fn when_pod_has_existing_tolerations_with_perfect_matching_config_should_should_do_nothing() {
+		let mut config = Config::default();
+		let group_config = GroupConfig {
+			node_selector: None,
+			affinity: None,
+			tolerations: Some(vec![
+				Toleration {
+					key: Some("some-key".into()),
+					value: Some("some-value".into()),
+					operator: Some("Equals".into()),
+					effect: Some("NoSchedule".into()),
+					toleration_seconds: None,
+				},
+				Toleration {
+					effect: Some("NoExecute".into()),
+					key: Some("other".into()),
+					operator: Some("Exists".into()),
+					toleration_seconds: None,
+					value: None,
+				},
+			]),
+			on_conflict: Conflict::Reject,
+		};
+		config.groups = HashMap::from([
+			("bar".into(), group_config)
+		]);
+
+		let mut state = TestAppState::new(config);
+		state.kubernetes.set_namespace_group("foo", "bar");
+
+		let body = PodCreateRequestBuilder::new()
+			.with_namespace("foo")
+			.with_toleration(Toleration {
+				effect: Some("NoExecute".into()),
+				key: Some("other".into()),
+				operator: Some("Exists".into()),
+				toleration_seconds: None,
+				value: None,
+			}).
+			with_toleration(Toleration {
+				key: Some("some-key".into()),
+				value: Some("some-value".into()),
+				operator: Some("Equals".into()),
+				effect: Some("NoSchedule".into()),
+				toleration_seconds: None,
+			})
+			.build();
+
+		let response = mutate_request(state, body).await;
+		let result = ParsedResponse::from_response(response).await;
+		assert_eq!(result.status, StatusCode::OK);
+		assert_eq!(result.admission_response.allowed, true);
+		assert!(result.patches.is_empty());
 	}
 }
