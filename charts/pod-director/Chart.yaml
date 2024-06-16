@@ -1,0 +1,5 @@
+apiVersion: v2
+name: pod-director
+description: A simple utility to make pods in specific namespaces run in specific nodes
+type: application
+version: 0.1.0

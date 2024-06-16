@@ -1,0 +1,180 @@
+# TODO update comments for entire chart
+
+# Default values for pod-director.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  registry: todo
+  repository: pod-director
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+config:
+  TODO: "" # TODO
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Map envs to the container directly
+env: []
+
+# Map extra environment variables from configmaps or secrets here
+envFrom: []
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    # - type: Resource
+    #   resource:
+    #     name: cpu
+    #     target:
+    #       type: Utilization
+    #       averageUtilization: 80
+    # - type: Resource
+    #   resource:
+    #     name: memory
+    #     target:
+    #       type: Utilization
+    #       averageUtilization: 80
+  behavior:
+    # scaleUp:
+    #   stabilizationWindowSeconds: 120
+    #   policies:
+    #     - type: Percent
+    #       value: 50
+    #       periodSeconds: 60
+    # scaleDown:
+    #   stabilizationWindowSeconds: 300
+    #   policies:
+    #     - type: Pods
+    #       value: 1
+    #       periodSeconds: 30
+
+# Determines availability of the applications and guarantees that the cluster won't evict too many pods
+# minAvailable and maxUnavailable are mutually exclusive, you must configure only one
+# To have this enabled, replicas must be > 1 or autoscaling minReplicas must be > 1
+pdb:
+  enabled: false
+  # minAvailable: 1  # Minimum number of available pods
+  # maxUnavailable: "50%"  # Maximum number of pods that can be evicted
+
+# TODO update comments (so no copy!)
+updateStrategy:
+  # Type of update strategy, can be either "RollingUpdate", for smooth transitions, or "Recreate", to destroy
+  # pods before starting new ones
+  type: RollingUpdate
+  # If using rolling update, you can configure the maximum surge (pods above the limit) or maximum unavailable pods
+  # during rollout. Both can be an absolute number or a percentage. See the Kubernetes' docs for more information
+  # rollingUpdate:
+  #   maxSurge: 50%
+  #   maxUnavailable: 2
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Main container's lifecycle
+lifecycle: {}
+# postStart:
+#   exec:
+#     command: ["echo", "Hello"]
+# preStop:
+#   exec:
+#     command: ["echo", "Bye"]
+
+readinessProbe:
+  enabled: true
+  # HTTP path to check
+  path: /health
+  # TODO: server secure etc
+  scheme: HTTPS
+  # Period in seconds between checks
+  period: 5
+  # The check has to succeed this many times before the pod is considered ready
+  successCount: 1
+  # The check has to fail this many times before the pod is considered not ready
+  failureCount: 3
+  # Delay in seconds before sending probes, generally this is not needed
+  initialDelaySeconds:
+
+podAnnotations: {}
+
+podLabels: {}
+
+# List of init containers to add to the pods
+initContainers: []
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
