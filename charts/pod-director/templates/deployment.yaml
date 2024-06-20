@@ -24,7 +24,7 @@ spec:
       labels:
         {{- include "pod-director.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
+          {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
       imagePullSecrets:
@@ -41,13 +41,9 @@ spec:
           image: {{ include "pod-director.imageFullname" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            {{- if .Values.env }}
-              {{- toYaml .Values.env | nindent 12 }}
-            {{- end }}
+            {{- toYaml .Values.env | nindent 12 }}
           envFrom:
-            {{- with .Values.envFrom }}
-              {{- toYaml . | nindent 12 }}
-            {{- end }}
+            {{- toYaml .Values.envFrom | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
