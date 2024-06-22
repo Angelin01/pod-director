@@ -18,7 +18,30 @@ nameOverride: ""
 fullnameOverride: ""
 
 config:
-  TODO: "" # TODO
+  annotations: {}
+  mountPath: /foo/bar
+  filename: pd-config.yaml
+
+  groups: {}
+  #  cicd:
+  #    nodeSelector:
+  #      role: "cicd"
+  #    tolerations:
+  #      - key: role
+  #        operator: Equals
+  #        value: cicd
+  #        effect: NoSchedule
+  #  windows:
+  #    nodeSelector:
+  #      kubernetes.io/os: "windows"
+
+  server: {}
+  #  bind_addr: 0.0.0.0
+  #  port: 8443
+  #  insecure: false
+  #  cert: cert.pem
+  #  key: key.pem
+
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -69,6 +92,7 @@ resources: {}
 
 autoscaling:
   enabled: false
+  annotations: {}
   minReplicas: 2
   maxReplicas: 5
   metrics:

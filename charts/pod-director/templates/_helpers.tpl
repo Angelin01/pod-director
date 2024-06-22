@@ -35,7 +35,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- .Values.serviceAccount.name | default (include "pod-director.fullname" .)  }}
 {{- end }}
 
-{{- define "pod-director.imageFullname" }}
+{{- define "pod-director.imageFullname" -}}
   {{- $image := .Values.image }}
   {{- $registry := $image.registry }}
   {{- $repository := required "An repository is required" $image.repository }}
@@ -47,4 +47,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
     {{- $tag = print ":" $tag }}
   {{- end }}
   {{- print $registry $repository $tag }}
+{{- end }}
+
+{{- define "pod-director.configMapName" -}}
+  {{- include "pod-director.fullname" . }}
 {{- end }}

@@ -1,0 +1,29 @@
+suite: deployment tests
+
+templates:
+  - deployment.yaml
+
+tests:
+  - it: given a configured mountPath then mountPath is sanitized
+    set:
+      config:
+        mountPath: foo//bar/
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          any: true
+          content:
+            mountPath: /foo/bar
+            readOnly: true
+
+  - it: given a configured mountPath and file name then PD_CONFIG_FILE env var is set to absolute path
+    set:
+      config:
+        mountPath: /foo/bar
+        filename: name.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PD_CONFIG_FILE
+            value: /foo/bar/name.yaml

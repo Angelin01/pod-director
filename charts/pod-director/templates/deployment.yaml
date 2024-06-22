@@ -1,3 +1,4 @@
+{{- $configMountPath := without (splitList "/" .Values.config.mountPath) "" | join "/" | printf "/%s" -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,8 +42,10 @@ spec:
           image: {{ include "pod-director.imageFullname" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            {{- if .Values.env }}
-              {{- toYaml .Values.env | nindent 12 }}
+            - name: PD_CONFIG_FILE
+              value: {{ print $configMountPath "/" .Values.config.filename | quote }}
+            {{- with .Values.env }}
+              {{- toYaml . | nindent 12 }}
             {{- end }}
           envFrom:
             {{- with .Values.envFrom }}
@@ -70,9 +73,19 @@ spec:
           lifecycle:
             {{- toYaml .Values.lifecycle | nindent 12 }}
           volumeMounts:
-            {{- toYaml .Values.volumeMounts | nindent 12 }}
+            - name: pd-config
+              mountPath: {{ $configMountPath }}
+              readOnly: true
+            {{- with .Values.volumeMounts }}
+              {{- toYaml . | nindent 12 }}
+            {{- end  }}
       volumes:
-        {{- toYaml .Values.volumes | nindent 8 }}
+        - name: pd-config
+          configMap:
+            name: {{ include "pod-director.configMapName" . }}
+        {{- with .Values.volumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       affinity:
