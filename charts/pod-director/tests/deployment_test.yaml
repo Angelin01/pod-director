@@ -4,6 +4,39 @@ templates:
   - deployment.yaml
 
 tests:
+  - it: given disabled autoscaling then deployment should be configured with replicas
+    set:
+      autoscaling:
+        enabled: false
+      replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+  - it: given enabled autoscaling then deployment should not contain replicas
+    set:
+      autoscaling:
+        enabled: true
+      replicaCount: 2
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: given custom pod labels then should include them along default labels
+    release:
+      name: pod-director
+    set:
+      podLabels:
+        foo: bar
+        bazz: banana
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["foo"]
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels["bazz"]
+          value: banana
+
   - it: given a configured mountPath then mountPath is sanitized
     set:
       config:

@@ -24,6 +24,9 @@
 app.kubernetes.io/version: {{ .Chart.Version | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ include "pod-director.chart" . }}
+{{- with .Values.globalLabels }}
+  {{- toYaml . }}
+{{- end }}
 {{- end }}
 
 {{- define "pod-director.selectorLabels" -}}

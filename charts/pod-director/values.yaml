@@ -61,6 +61,7 @@ env: []
 envFrom: []
 
 service:
+  annotations: {}
   type: ClusterIP
   port: 80
 
@@ -126,6 +127,7 @@ autoscaling:
 # minAvailable and maxUnavailable are mutually exclusive, you must configure only one
 # To have this enabled, replicas must be > 1 or autoscaling minReplicas must be > 1
 pdb:
+  annotations: {}
   enabled: false
   # minAvailable: 1  # Minimum number of available pods
   # maxUnavailable: "50%"  # Maximum number of pods that can be evicted
@@ -176,6 +178,9 @@ readinessProbe:
   failureCount: 3
   # Delay in seconds before sending probes, generally this is not needed
   initialDelaySeconds:
+
+# Extra labels to add to ALL resources from this chart
+globalLabels: {}
 
 podAnnotations: {}
 

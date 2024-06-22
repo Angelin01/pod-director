@@ -16,6 +16,10 @@ metadata:
   name: {{ include "pod-director.fullname" . }}
   labels:
     {{- include "pod-director.labels" . | nindent 4 }}
+  {{- with .Values.pdb.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   {{- with .Values.pdb.minAvailable }}
   minAvailable: {{ . }}
