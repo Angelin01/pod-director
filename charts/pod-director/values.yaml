@@ -1,0 +1,259 @@
+# Overrides the chart name
+nameOverride: ""
+# Overrides the full release name
+fullnameOverride: ""
+
+image:
+  registry: todo  # You can override the registry, useful if you are using some kind of container cache
+  repository: pod-director
+  tag: ""  # Overrides the image tag whose default is the chart appVersion.
+  pullPolicy: IfNotPresent  # See Kubernetes' pull policy
+  pullSecrets: []  # See pull secrets
+
+# Pod director's configuration
+config:
+  # Annotations to add to the ConfigMap
+  annotations: {}
+
+  # Mount path and filename to mount in the container
+  # Generally, unless you have very specific requirements for what is being mounted in the container, or are using some
+  # kind of sidecar or init container, this doesn't need to be changed
+  mountPath: /app/config
+  filename: pd-config.yaml
+
+  # Main group config for pod director! See the documentation <here> TODO
+  groups: {}
+  #  cicd:
+  #    nodeSelector:
+  #      role: "cicd"
+  #    tolerations:
+  #      - key: role
+  #        operator: Equals
+  #        value: cicd
+  #        effect: NoSchedule
+  #  windows:
+  #    nodeSelector:
+  #      kubernetes.io/os: "windows"
+
+  # Server configs, generally they do not need to be changed unless you have very specific requirements
+  server: {}
+  #  bind_addr: 0.0.0.0
+  #  port: 8443
+  #  insecure: false
+  #  cert: certs/cert.pem
+  #  key: certs/key.pem
+
+# Number of Pod Director's replicas to run, ignored if autoscaling is enabled
+replicaCount: 1
+
+autoscaling:
+  # Enables or disables autoscaling for Pod Director
+  enabled: false
+
+  # Extra annotations to add to the HPA
+  annotations: {}
+
+  # Minimum and maximum number of replicas to run, use a minimum of 2 for High Availability
+  minReplicas: 2
+  maxReplicas: 5
+
+  # Both metrics and behavior are highly customizable and dependent on your use case, check Kubernetes' HPA
+  # documentation for possible values, simply using the examples below is unlikely to be productive
+  metrics:
+  # - type: Resource
+  #   resource:
+  #     name: cpu
+  #     target:
+  #       type: Utilization
+  #       averageUtilization: 80
+  # - type: Resource
+  #   resource:
+  #     name: memory
+  #     target:
+  #       type: Utilization
+  #       averageUtilization: 80
+  behavior:
+  # scaleUp:
+  #   stabilizationWindowSeconds: 120
+  #   policies:
+  #     - type: Percent
+  #       value: 50
+  #       periodSeconds: 60
+  # scaleDown:
+  #   stabilizationWindowSeconds: 300
+  #   policies:
+  #     - type: Pods
+  #       value: 1
+  #       periodSeconds: 30
+
+# Pod Director generally uses <TODO> memory per container
+# Due to local caching, estimate <TODO> extra per namespace in your cluster
+resources: {}
+# limits:
+#   cpu: 50m
+#   memory: 64Mi
+# requests:
+#   cpu: 50m
+#   memory: 64Mi
+
+# Pod Director requires permissions to list and watch cluster Namespaces
+# It will only interact with Namespaces labeled correctly
+serviceAccount:
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set, a name is generated using the fullname template
+  name: ""
+
+# Map envs to the main container directly
+env: []
+
+# Map extra environment variables to the main container from configmaps or secrets
+envFrom: []
+
+# Service to expose to the cluster
+service:
+  annotations: {}
+  type: ClusterIP
+
+  # Note that Kubernetes' API expects to call a HTTPS endpoint for its webhooks
+  # In most use cases, you can't terminate TLS anywhere but directly at the service
+  port: 443
+
+# Generally, it's not useful to expose Pod Director outside the cluster, and it is not required for standard operation
+# Nonetheless, the Ingress is available in case you want to monitor the health endpoint or collect metrics from outside
+# the cluster
+ingress:
+  enabled: false
+  className: ""  # Selects the appropriate Ingress Controller
+
+  # Extra annotations to add to the Ingress
+  annotations: {}
+
+  # Standard Ingress configuration for hosts and TLS
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+# Determines availability of the applications and guarantees that the cluster won't evict too many pods
+# minAvailable and maxUnavailable are mutually exclusive, you must configure only one
+# To have this enabled, replicas must be > 1 or autoscaling minReplicas must be > 1
+pdb:
+  # Extra annotations to add to the PDB
+  annotations: {}
+  enabled: false
+  # minAvailable: 1  # Minimum number of available pods
+  # maxUnavailable: "50%"  # Maximum number of pods that can be evicted
+
+# Update strategy, mapped directly to the Deployment's update strategy
+updateStrategy:
+  # Type of update strategy, can be either "RollingUpdate", for smooth transitions, or "Recreate", to destroy
+  # pods before starting new ones
+  type: RollingUpdate
+
+  # If using rolling update, you can configure the maximum surge (pods above the limit) or maximum unavailable pods
+  # during rollout. Both can be an absolute number or a percentage. See the Kubernetes' docs for more information
+  # rollingUpdate:
+  #   maxSurge: 50%
+  #   maxUnavailable: 2
+
+# Maps directly to the Pod's security context
+podSecurityContext: {}
+  # fsGroup: 2000
+
+# Main container's security context, Pod Director requires no special privileges
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Main container's lifecycle
+lifecycle: {}
+# postStart:
+#   exec:
+#     command: ["echo", "Hello"]
+# preStop:
+#   exec:
+#     command: ["echo", "Bye"]
+
+# Default readiness probe, generally you do not need to change this
+readinessProbe:
+  enabled: true
+  # HTTP path to check
+  path: /health
+  # Since Kubernetes' requires that admission webhooks be HTTPS endpoints, the healthcheck also uses HTTPS
+  scheme: HTTPS
+  # Period in seconds between checks
+  period: 5
+  # The check has to succeed this many times before the pod is considered ready
+  successCount: 1
+  # The check has to fail this many times before the pod is considered not ready
+  failureCount: 3
+  # Delay in seconds before sending probes, generally this is not needed
+  initialDelaySeconds:
+
+# Extra labels to add to ALL resources from this chart
+globalLabels: {}
+
+# Extra annotations to add to the pods
+podAnnotations: {}
+
+# Extra labels to add to the pods
+podLabels: {}
+
+# List of init containers to add to the pods, mapped directly to the Deployment's initContainers
+initContainers: []
+#  - name: my-init
+#    image: busybox
+#    command: ["foo", "bar"]
+
+# List of extra containers (sidecars) to add to the deployment
+extraContainers: []
+#  - name: my-sidecar
+#    image: busybox
+#    command: ["foo", "bar"]
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+# Maps directly to the pods' node selector
+nodeSelector: {}
+# foo: bar
+
+# Maps directly to the pods' tolerations
+tolerations: []
+#  - key: "foo"
+#    operator: "Equal"
+#    value: "bar"
+#    effect: "NoSchedule"
+
+# Maps directly to the pods' affinity, use pod anti affinity for high availability
+affinity: {}
+#  podAntiAffinity:
+#    requiredDuringSchedulingIgnoredDuringExecution:
+#      - labelSelector:
+#          matchExpressions:
+#            - key: app.kubernetes.io/instance
+#              operator: In
+#              values: ["pod-director"]
+#        topologyKey: "kubernetes.io/hostname"

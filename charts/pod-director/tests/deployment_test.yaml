@@ -1,0 +1,128 @@
+suite: deployment tests
+
+templates:
+  - deployment.yaml
+
+tests:
+  - it: given disabled autoscaling then deployment should be configured with replicas
+    set:
+      autoscaling:
+        enabled: false
+      replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+  - it: given enabled autoscaling then deployment should not contain replicas
+    set:
+      autoscaling:
+        enabled: true
+      replicaCount: 2
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: given custom pod labels then should include them along default labels
+    release:
+      name: pod-director
+    set:
+      podLabels:
+        foo: bar
+        bazz: banana
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["foo"]
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels["bazz"]
+          value: banana
+
+  - it: given a configured mountPath then mountPath is sanitized
+    set:
+      config:
+        mountPath: foo//bar/
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          any: true
+          content:
+            mountPath: /foo/bar
+            readOnly: true
+
+  - it: given a configured mountPath and file name then PD_CONFIG_FILE env var is set to absolute path
+    set:
+      config:
+        mountPath: /foo/bar
+        filename: name.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PD_CONFIG_FILE
+            value: /foo/bar/name.yaml
+
+  - it: given extra pod labels should include them along default labels
+    release:
+      name: release-name
+    chart:
+      version: 1.2.3
+    set:
+      podLabels:
+        foo: value
+        bar: other-value
+      nameOverride: name-override
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/version"]
+          value: 1.2.3
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+      - equal:
+          path: spec.template.metadata.labels["helm.sh/chart"]
+          value: pod-director-1.2.3
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: name-override
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/instance"]
+          value: release-name
+      - equal:
+          path: spec.template.metadata.labels["foo"]
+          value: value
+      - equal:
+          path: spec.template.metadata.labels["bar"]
+          value: other-value
+
+  - it: given extra envs should configure them along default envs
+    set:
+      config:
+        mountPath: /foo/bar
+        filename: name.yaml
+      env:
+        - name: FOO
+          value: bar
+        - name: SECRET
+          valueFrom:
+            secretKeyRef:
+              name: some-secret
+              key: some-key
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PD_CONFIG_FILE
+            value: /foo/bar/name.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FOO
+            value: bar
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SECRET
+            valueFrom:
+              secretKeyRef:
+                name: some-secret
+                key: some-key

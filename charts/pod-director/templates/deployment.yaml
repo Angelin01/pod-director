@@ -1,0 +1,101 @@
+{{- $configMountPath := without (splitList "/" .Values.config.mountPath) "" | join "/" | printf "/%s" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pod-director.fullname" . }}
+  labels:
+    {{- include "pod-director.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  {{- with .Values.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pod-director.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "pod-director.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      serviceAccountName: {{ include "pod-director.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- toYaml .Values.initContainers | nindent 8 }}
+      containers:
+        - name: pod-director
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "pod-director.imageFullname" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: PD_CONFIG_FILE
+              value: {{ print $configMountPath "/" .Values.config.filename | quote }}
+            {{- with .Values.env }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            {{- toYaml .Values.envFrom | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.server.port | default 8443 }}
+              protocol: TCP
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+              scheme: {{ .Values.readinessProbe.scheme }}
+            periodSeconds: {{ .Values.readinessProbe.period }}
+            successThreshold: {{ .Values.readinessProbe.successCount }}
+            failureThreshold: {{ .Values.readinessProbe.failureCount }}
+            {{- if .Values.readinessProbe.initialDelaySeconds }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          lifecycle:
+            {{- toYaml .Values.lifecycle | nindent 12 }}
+          volumeMounts:
+            - name: pd-config
+              mountPath: {{ $configMountPath }}
+              readOnly: true
+            - name: webhook
+              mountPath: /app/certs
+              readOnly: true
+            {{- with .Values.volumeMounts }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: pd-config
+          configMap:
+            name: {{ include "pod-director.configMapName" . }}
+        - name: webhook
+          secret:
+            secretName: {{ include "pod-director.webhookSecretName" . }}
+        {{- with .Values.volumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
