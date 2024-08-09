@@ -1,0 +1,14 @@
+{{- if .Values.config.groups }}
+Pod Director installed, the following groups were configured:
+{{- toYaml .Values.config.groups | nindent 2 }}
+
+{{ $firstGroup := first (keys .Values.config.groups) -}}
+{{ $testNamespace := "test-namespace" -}}
+You can validate that the groups are working by labelling a test namespace with a group and running a pod in it:
+  kubectl create namespace {{ $testNamespace }}
+  kubectl label namespace {{ $testNamespace }} pod-director/group={{ $firstGroup }}
+  kubectl -n {{ $testNamespace }} run --rm -ti --image=busybox -- /bin/sh
+{{- else }}
+Pod Director was installed, but no groups were configured! It will remain idle until you configure a group and label
+a namespace!
+{{- end }}

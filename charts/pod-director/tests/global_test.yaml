@@ -1,0 +1,33 @@
+suite: global tests
+
+templates:
+  - configmap.yaml
+  - deployment.yaml
+  - hpa.yaml
+  - ingress.yaml
+  - pdb.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - clusterrole.yaml
+  - rolebinding.yaml
+
+tests:
+  - it: given configured global labels then all resources should have global labels
+    set:
+      ingress:
+        enabled: true
+      autoscaling:
+        enabled: true
+      pdb:
+        enabled: true
+        minAvailable: 1
+      globalLabels:
+        foo: value
+        bar: other-value
+    asserts:
+      - equal:
+          path: metadata.labels["foo"]
+          value: value
+      - equal:
+          path: metadata.labels["bar"]
+          value: other-value

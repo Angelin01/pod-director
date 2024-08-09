@@ -1,0 +1,66 @@
+suite: pdb test
+
+templates:
+  - pdb.yaml
+
+tests:
+  - it: given enabled pdb then either minAvailable or maxUnavailable must be defined
+    set:
+      pdb:
+        enabled: true
+        minAvailable: null
+        maxUnavailable: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "Either minAvailable or maxUnavailable for PDB must be defined (but not both)"
+  - it: given enabled pdb then both minAvailable or maxUnavailable must not be defined together
+    set:
+      pdb:
+        enabled: true
+        minAvailable: 1
+        maxUnavailable: "50%"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Either minAvailable or maxUnavailable for PDB must be defined (but not both)"
+
+  - it: given enabled pdb and disabled autoscaling then replicaCount must be greater than 1
+    set:
+      replicaCount: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: "To use a PDB with a static replica count, replicaCount must be greater than 1"
+  - it: given enabled pdb and enabled autoscaling then autoscaling minAvailable must be greater than 1
+    set:
+      autoscaling:
+        enabled: true
+        minReplicas: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: "To use a PDB with autoscaling, minReplicas must be greater than 1"
+
+  - it: given enabled pdb and disabled autoscaling and replicaCount greater than 1 then must create pdb
+    set:
+      replicaCount: 2
+      pdb:
+        enabled: true
+        minAvailable: 1
+    asserts:
+      - hasDocuments:
+          count: 1
+  - it: given enabled pdb and enabled autoscaling and autoscaling minAvailable greater than 1 then must create pdb
+    set:
+      autoscaling:
+        enabled: true
+        minReplicas: 2
+      pdb:
+        enabled: true
+        minAvailable: 1
+    asserts:
+      - hasDocuments:
+          count: 1

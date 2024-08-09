@@ -1,0 +1,42 @@
+{{- $ca := genCA "pod-director-ca" 30 -}}
+{{- $serviceFqdn := printf "%s.%s.svc" (include "pod-director.serviceName" .) .Release.Namespace -}}
+{{- $cert := genSignedCert $serviceFqdn nil (list (include "pod-director.serviceName" .) $serviceFqdn) 30 $ca -}}
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: {{ include "pod-director.webhookSecretName" . }}
+  labels:
+    {{- include "pod-director.labels" . | nindent 4 }}
+data:
+  tls.crt: {{ $cert.Cert | toString | b64enc }}
+  tls.key: {{ $cert.Key | toString | b64enc }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "pod-director.fullname" . }}
+  labels:
+    {{- include "pod-director.labels" . | nindent 4 }}
+webhooks:
+  - name: {{ $serviceFqdn }}
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      caBundle: {{ $ca.Cert | toString | b64enc }}
+      service:
+        name: {{ include "pod-director.serviceName" . }}
+        namespace: {{ .Release.Namespace }}
+        path: "/mutate"
+        port: {{ .Values.service.port }}
+    failurePolicy: Fail
+    namespaceSelector:
+      matchExpressions:
+        - key: pod-director/group
+          operator: Exists
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        scope: "Namespaced"
+    sideEffects: None

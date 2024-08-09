@@ -1,0 +1,33 @@
+{{- if .Values.pdb.enabled }}
+  {{- if or (and .Values.pdb.minAvailable .Values.pdb.maxUnavailable) (and (not .Values.pdb.minAvailable) (not .Values.pdb.maxUnavailable)) }}
+    {{- fail "Either minAvailable or maxUnavailable for PDB must be defined (but not both)" }}
+  {{- end }}
+
+  {{- if .Values.autoscaling.enabled }}
+    {{- if le (int .Values.autoscaling.minReplicas) 1 }}
+      {{- fail "To use a PDB with autoscaling, minReplicas must be greater than 1" }}
+    {{- end }}
+  {{- else if le (int .Values.replicaCount) 1 }}
+    {{- fail "To use a PDB with a static replica count, replicaCount must be greater than 1" }}
+  {{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pod-director.fullname" . }}
+  labels:
+    {{- include "pod-director.labels" . | nindent 4 }}
+  {{- with .Values.pdb.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.pdb.minAvailable }}
+  minAvailable: {{ . }}
+  {{- end }}
+  {{- with .Values.pdb.maxUnavailable }}
+  maxUnavailable: {{ . }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pod-director.selectorLabels" . | nindent 6 }}
+{{- end }}
