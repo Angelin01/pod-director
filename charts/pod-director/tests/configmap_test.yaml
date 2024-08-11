@@ -1,0 +1,25 @@
+suite: configmap tests
+
+templates:
+  - configmap.yaml
+
+tests:
+  - it: given no configured group label then it must not be provided in the configuration file
+    set:
+      config:
+        filename: test-file.yaml
+        groupLabel: ""
+    asserts:
+      - notMatchRegex:
+          path: .data["test-file.yaml"]
+          pattern: 'groupLabel:'
+
+  - it: given a configured group label then it must be provided in the configuration file
+    set:
+      config:
+        filename: test-file.yaml
+        groupLabel: "some-label/value"
+    asserts:
+      - matchRegex:
+          path: .data["test-file.yaml"]
+          pattern: 'groupLabel: "some-label/value"'

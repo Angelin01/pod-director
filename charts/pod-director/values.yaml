@@ -35,6 +35,10 @@ config:
   #    nodeSelector:
   #      kubernetes.io/os: "windows"
 
+  # Changes the group label that must be assigned to namespaces for Pod director to watch them
+  # If not supplied, the default "pod-director/group" label is used
+  groupLabel: ""
+
   # Server configs, generally they do not need to be changed unless you have very specific requirements
   server: {}
   #  bind_addr: 0.0.0.0
