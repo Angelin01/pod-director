@@ -14,7 +14,7 @@ tests:
           path: .data["test-file.yaml"]
           pattern: 'groupLabel:'
 
-  - it: given a configured group label then it must be provided in the configuration file
+  - it: given a valid configured group label then it must be provided in the configuration file
     set:
       config:
         filename: test-file.yaml
@@ -23,3 +23,19 @@ tests:
       - matchRegex:
           path: .data["test-file.yaml"]
           pattern: 'groupLabel: "some-label/value"'
+
+  - it: given a group label with length greater than 63 chars then templating should fail
+    set:
+      config:
+        groupLabel: "0123456789012345678901234567890123456789012345678901234567890123"
+    asserts:
+      - failedTemplate:
+          errorMessage: "The group label '0123456789012345678901234567890123456789012345678901234567890123' is longer than the maximum length 63 for labels"
+
+  - it: given a group label with an invalid name then should fail template
+    set:
+      config:
+        groupLabel: "not-valid-@-label"
+    asserts:
+      - failedTemplate:
+          errorMessage: "The group label 'not-valid-@-label' is not a valid label"
