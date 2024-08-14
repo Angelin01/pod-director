@@ -2,8 +2,6 @@ use axum::async_trait;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{Api, Client, ResourceExt};
 
-const LABEL: &str = "pod-director/group";
-
 #[async_trait]
 pub trait KubernetesService: Send + Sync + Clone {
 	async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> Result<Option<String>, kube::error::Error>;
@@ -12,12 +10,14 @@ pub trait KubernetesService: Send + Sync + Clone {
 #[derive(Clone)]
 pub struct StandardKubernetesService {
 	api: Api<Namespace>,
+	group_label: String,
 }
 
 impl StandardKubernetesService {
-	pub async fn new() -> anyhow::Result<Self> {
+	pub async fn new<S: AsRef<str>>(group_label: S) -> anyhow::Result<Self> {
 		Ok(StandardKubernetesService {
 			api: Api::all(Client::try_default().await?),
+			group_label: group_label.as_ref().to_string(),
 		})
 	}
 }
@@ -28,7 +28,7 @@ impl KubernetesService for StandardKubernetesService {
 	async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> Result<Option<String>, kube::error::Error> {
 		let namespace = self.api.get(namespace.as_ref()).await?;
 
-		let result = match namespace.labels().get(LABEL) {
+		let result = match namespace.labels().get(&self.group_label) {
 			None => None,
 			Some(s) => Some(s.to_string())
 		};

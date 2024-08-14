@@ -27,7 +27,7 @@ pub async fn serve(config: Arc<Config>) -> Result<()> {
 	let shutdown_handle = Handle::new();
 	tokio::spawn(shutdown::graceful_shutdown(shutdown_handle.clone()));
 
-	let kubernetes = StandardKubernetesService::new().await?;
+	let kubernetes = StandardKubernetesService::new(&config.group_label).await?;
 	let app_state = StandardAppState::new(config.clone(), kubernetes);
 	let service = build_app(app_state).into_make_service();
 

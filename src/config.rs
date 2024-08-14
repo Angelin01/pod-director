@@ -34,11 +34,23 @@ pub enum Conflict {
 	Reject,
 }
 
-#[derive(Deserialize, Serialize, Default, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
+#[serde(rename_all = "camelCase")]
 pub struct Config {
 	pub groups: HashMap<String, GroupConfig>,
+	pub group_label: String,
 	pub server: ServerConfig,
+}
+
+impl Default for Config {
+	fn default() -> Self {
+		Self {
+			groups: Default::default(),
+			group_label: "pod-director/group".to_string(),
+			server: Default::default(),
+		}
+	}
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -182,7 +194,7 @@ mod tests {
 				on_conflict: Conflict::Override,
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default() });
+			assert_eq!(config, Config { groups, group_label: "pod-director/group".into(), server: Default::default() });
 
 			Ok(())
 		});
@@ -215,7 +227,7 @@ mod tests {
 				on_conflict: Default::default(),
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default() });
+			assert_eq!(config, Config { groups, group_label: "pod-director/group".into(), server: Default::default() });
 
 			Ok(())
 		});
@@ -241,7 +253,7 @@ mod tests {
 				on_conflict: Default::default(),
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default() });
+			assert_eq!(config, Config { groups, group_label: "pod-director/group".into(), server: Default::default() });
 
 			Ok(())
 		});
@@ -262,7 +274,7 @@ mod tests {
 				on_conflict: Default::default(),
 			});
 
-			assert_eq!(config, Config { groups, server: Default::default() });
+			assert_eq!(config, Config { groups, group_label: "pod-director/group".into(), server: Default::default() });
 
 			Ok(())
 		});
