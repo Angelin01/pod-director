@@ -1,4 +1,5 @@
 {{- $labelKeyRegex := "^([a-z0-9]([-a-z0-9]*[a-z0-9])?\\.)*([a-z0-9]([-a-z0-9]*[a-z0-9])?\\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$" }}
+{{- $labelValueRegex := "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" }}
 {{- $groupLabel := .Values.config.groupLabel }}
 {{- if $groupLabel }}
   {{- if gt (len $groupLabel) 63 }}
@@ -6,6 +7,14 @@
   {{- end }}
   {{- if not (mustRegexMatch $labelKeyRegex $groupLabel) }}
     {{- fail (printf "The group label '%s' is not a valid label" $groupLabel) }}
+  {{- end }}
+{{- end }}
+{{- range $groupName := keys .Values.config.groups }}
+  {{- if gt (len $groupName) 63 }}
+    {{- fail (printf "The group name '%s' is longer than the maximum length 63 for label values" $groupName) }}
+  {{- end }}
+  {{- if not (mustRegexMatch $labelValueRegex $groupName) }}
+    {{- fail (printf "The group name '%s' is not a valid label value and thus cannot be a group name" $groupName) }}
   {{- end }}
 {{- end }}
 apiVersion: v1

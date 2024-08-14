@@ -39,3 +39,25 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "The group label 'not-valid-@-label' is not a valid label"
+
+  - it: given a group name with length greater than 63 chars then templating should fail
+    set:
+      config:
+        groups:
+          "0123456789012345678901234567890123456789012345678901234567890123":
+            nodeSelector:
+              role: "test"
+    asserts:
+      - failedTemplate:
+          errorMessage: "The group name '0123456789012345678901234567890123456789012345678901234567890123' is longer than the maximum length 63 for label values"
+
+  - it: given a group name that is an invalid label value then templating should fail
+    set:
+      config:
+        groups:
+          "SomeGroup@Name":
+            nodeSelector:
+              role: "test"
+    asserts:
+      - failedTemplate:
+          errorMessage: "The group name 'SomeGroup@Name' is not a valid label value and thus cannot be a group name"
