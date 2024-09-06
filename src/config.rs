@@ -89,8 +89,8 @@ impl Default for ServerConfig {
 			bind_addr: IpAddr::from([0, 0, 0, 0]),
 			port: 8443,
 			insecure: false,
-			cert: PathBuf::from("certs/cert.pem"),
-			key: PathBuf::from("certs/key.pem"),
+			cert: PathBuf::from("certs/tls.crt"),
+			key: PathBuf::from("certs/tls.key"),
 		}
 	}
 }
