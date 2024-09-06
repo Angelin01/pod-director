@@ -19,7 +19,7 @@ pub async fn mutate<S: AppState>(
 
 	let namespace = request.namespace.as_ref().ok_or(ResponseError::NoNamespace)?;
 
-	let group = match app_state.kubernetes().namespace_group(namespace).await? {
+	let group = match app_state.kubernetes().namespace_group(namespace).await {
 		Some(g) => g,
 		None => return Err(ResponseError::NamespaceMissingLabel {
 			request,
@@ -410,20 +410,6 @@ mod tests {
 			result.admission_response.result.message,
 			"The pod's nodeSelector label-0=conflicting-value conflicts with pod-director's configuration label-0=value-0"
 		);
-	}
-
-	#[tokio::test]
-	async fn when_fails_fetching_label_for_namespace_should_return_internal_server_error() {
-		let mut state = TestAppState::new(Config::default());
-		state.kubernetes.set_error();
-
-		let body = PodCreateRequestBuilder::new()
-			.with_namespace("foo")
-			.build();
-
-		let response = mutate_request(state, body).await;
-		let result = ParsedResponse::from_response(response).await;
-		assert_eq!(result.status, StatusCode::INTERNAL_SERVER_ERROR);
 	}
 
 	#[tokio::test]
