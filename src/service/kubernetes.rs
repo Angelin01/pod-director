@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use axum::async_trait;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{Api, Client, ResourceExt};
@@ -8,12 +10,15 @@ use futures::{future, StreamExt};
 #[async_trait]
 pub trait KubernetesService: Send + Sync + Clone {
     async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> Option<String>;
+
+    async fn healthy(&self) -> bool;
 }
 
 #[derive(Clone)]
 pub struct StandardKubernetesService {
     store: Store<Namespace>,
     group_label: String,
+    healthy: Arc<AtomicBool>,
 }
 
 impl StandardKubernetesService {
@@ -24,13 +29,22 @@ impl StandardKubernetesService {
 
         let (reader, writer) = kube::runtime::reflector::store();
 
+        let healthy = Arc::new(AtomicBool::new(true));
+
+        let healthy_clone = Arc::clone(&healthy);
         let stream = reflector(writer, watcher)
             .default_backoff()
             .touched_objects()
-            .for_each(|r| {
+            .for_each(move |r| {
+                let reflector_healthy = Arc::clone(&healthy_clone);
                 future::ready(match r {
-                    Ok(o) => println!("Saw {}", o.name_any()),
-                    Err(e) => println!("watcher error: {e}"),
+                    Ok(_) => {
+                        reflector_healthy.store(true, Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        reflector_healthy.store(false, Ordering::Relaxed);
+                        println!("watcher error: {e}")
+                    }
                 })
             });
         tokio::spawn(stream);
@@ -40,6 +54,7 @@ impl StandardKubernetesService {
         Ok(StandardKubernetesService {
             store: reader,
             group_label: group_label.as_ref().to_string(),
+            healthy,
         })
     }
 }
@@ -60,6 +75,8 @@ impl KubernetesService for StandardKubernetesService {
 
         result
     }
+
+    async fn healthy(&self) -> bool { self.healthy.load(Ordering::Relaxed) }
 }
 
 #[cfg(test)]
@@ -71,16 +88,23 @@ pub mod tests {
     #[derive(Clone)]
     pub struct MockKubernetesService {
         namespace_group_map: BTreeMap<String, String>,
+        is_error: bool,
     }
 
     impl MockKubernetesService {
         pub fn new() -> Self {
             MockKubernetesService {
                 namespace_group_map: BTreeMap::new(),
+                is_error: false,
             }
         }
+
         pub fn set_namespace_group<S: AsRef<str>, R: AsRef<str>>(&mut self, namespace: S, group: R) {
             self.namespace_group_map.insert(namespace.as_ref().into(), group.as_ref().into());
+        }
+
+        pub fn set_error(&mut self, is_erroring: bool) {
+            self.is_error = is_erroring;
         }
     }
 
@@ -89,5 +113,7 @@ pub mod tests {
         async fn namespace_group<S: AsRef<str> + Send + Sync>(&self, namespace: S) -> Option<String> {
             self.namespace_group_map.get(namespace.as_ref()).map(String::to_owned)
         }
+
+        async fn healthy(&self) -> bool { !self.is_error }
     }
 }
