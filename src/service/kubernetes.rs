@@ -3,9 +3,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use axum::async_trait;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{Api, Client, ResourceExt};
-use kube::runtime::{reflector, WatchStreamExt};
+use kube::runtime::{reflector, watcher, WatchStreamExt};
 use kube::runtime::reflector::{ObjectRef, Store};
-use futures::{future, StreamExt};
+use futures::{future, Stream, StreamExt};
+use kube::runtime::reflector::store::Writer;
 
 #[async_trait]
 pub trait KubernetesService: Send + Sync + Clone {
@@ -31,6 +32,22 @@ impl StandardKubernetesService {
 
         let healthy = Arc::new(AtomicBool::new(true));
 
+        Self::watch_namespaces(watcher, writer, &healthy);
+
+        reader.wait_until_ready().await?;
+
+        Ok(StandardKubernetesService {
+            store: reader,
+            group_label: group_label.as_ref().to_string(),
+            healthy,
+        })
+    }
+
+    fn watch_namespaces(
+        watcher: impl Stream<Item=watcher::Result<watcher::Event<Namespace>>> + Send + Sized + 'static,
+        writer: Writer<Namespace>,
+        healthy: &Arc<AtomicBool>,
+    ) {
         let healthy_clone = Arc::clone(&healthy);
         let stream = reflector(writer, watcher)
             .default_backoff()
@@ -48,14 +65,6 @@ impl StandardKubernetesService {
                 })
             });
         tokio::spawn(stream);
-
-        reader.wait_until_ready().await?;
-
-        Ok(StandardKubernetesService {
-            store: reader,
-            group_label: group_label.as_ref().to_string(),
-            healthy,
-        })
     }
 }
 
