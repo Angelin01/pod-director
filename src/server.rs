@@ -16,7 +16,7 @@ pub mod state;
 
 pub fn build_app<S: AppState>(state: S) -> Router {
 	Router::new()
-		.route("/health", get(handler::health))
+		.route("/health", get(handler::health::<S>))
 		.route("/mutate", post(handler::mutate::<S>))
 		.with_state(state)
 }
