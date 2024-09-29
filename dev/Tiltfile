@@ -1,0 +1,22 @@
+load('ext://helm_resource', 'helm_resource')
+load('ext://namespace', 'namespace_create')
+
+default_registry('localhost:32770', host_from_cluster='localhost:5000')
+
+ROOT_DIR = '..'
+
+docker_build(
+  ref='pod-director',
+  context=ROOT_DIR,
+  dockerfile='%s/dev/debug.Containerfile' % ROOT_DIR
+)
+
+helm_resource(
+  name='pod-director',
+  chart='%s/charts/pod-director' % ROOT_DIR,
+  release_name='pod-director',
+  namespace='pod-director',
+  image_deps=['pod-director'],
+  image_keys=[('image.registry', 'image.repository', 'image.tag')],
+  flags=['--create-namespace', '--values=%s/dev/values-tilt.yaml' % ROOT_DIR]
+)
