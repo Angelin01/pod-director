@@ -1,0 +1,5 @@
+config:
+  groups:
+    test:
+      nodeSelector:
+        test-label: test-value
