@@ -6,7 +6,7 @@ use anyhow::{Error, Result};
 use axum_server::tls_rustls::RustlsConfig;
 use figment::{error, Figment, providers::{Env, Format, Yaml}};
 use figment::providers::Serialized;
-use k8s_openapi::api::core::v1::Toleration;
+use k8s_openapi::api::core::v1::{Affinity, Toleration};
 use serde::{Deserialize, Serialize};
 
 use crate::error::ConfigError;
@@ -21,7 +21,7 @@ impl Config {
 
 		Figment::from(Serialized::defaults(Config::default()))
 			.merge(Yaml::file(config_file))
-			.merge(Env::prefixed(ENV_PREFIX).split("_"))
+			.merge(Env::prefixed(ENV_PREFIX).split("_").lowercase(false))
 			.extract()
 	}
 }
@@ -99,7 +99,7 @@ impl Default for ServerConfig {
 #[serde(rename_all = "camelCase")]
 pub struct GroupConfig {
 	pub node_selector: Option<HashMap<String, String>>,
-	pub affinity: Option<Vec<String>>,
+	pub affinity: Option<Affinity>,
 	pub tolerations: Option<Vec<Toleration>>,
 	#[serde(default)]
 	pub on_conflict: Conflict,
@@ -111,14 +111,15 @@ mod tests {
 
 	use figment::Jail;
 	use indoc::indoc;
-	use k8s_openapi::api::core::v1::Toleration;
-
+	use k8s_openapi::api::core::v1::{Affinity, NodeAffinity, NodeSelector, NodeSelectorRequirement, NodeSelectorTerm, Toleration};
 	use super::{Config, Conflict, DEFAULT_CONFIG_FILE, ENV_CONFIG_FILE, GroupConfig};
 
 	#[test]
 	fn given_valid_config_file_at_default_path_then_should_be_loaded() {
 		Jail::expect_with(|jail| {
-			jail.create_file(DEFAULT_CONFIG_FILE, indoc! { r#"
+			jail.create_file(DEFAULT_CONFIG_FILE, indoc! {
+				// language=yaml
+				r#"
 				groups:
 				  foo:
 				    nodeSelector:
@@ -132,7 +133,18 @@ mod tests {
 				        value: bar
 				        effect: NoSchedule
 				  bazz:
-				    affinity: []
+				    affinity:
+				      nodeAffinity:
+				        requiredDuringSchedulingIgnoredDuringExecution:
+				          nodeSelectorTerms:
+				            - matchExpressions:
+				              - key: example.com/key
+				                operator: In
+				                values: ["a", "b"]
+				            - matchFields:
+				              - key: metadata.name
+				                operator: In
+				                values: ["potato", "banana"]
 				  all:
 				    nodeSelector: {"a": "1", "b": "2", "c": "3"}
 				    tolerations:
@@ -140,7 +152,18 @@ mod tests {
 				        operator: Equals
 				        value: bar
 				        effect: NoSchedule
-				    affinity: []
+				    affinity:
+				      nodeAffinity:
+				        requiredDuringSchedulingIgnoredDuringExecution:
+				          nodeSelectorTerms:
+				            - matchExpressions:
+				              - key: example.com/key
+				                operator: In
+				                values: ["a", "b"]
+				            - matchFields:
+				              - key: metadata.name
+				                operator: In
+				                values: ["potato", "banana"]
 				    onConflict: Override
 			"# })?;
 
@@ -172,7 +195,37 @@ mod tests {
 			});
 			groups.insert("bazz".into(), GroupConfig {
 				node_selector: None,
-				affinity: Some(vec![]),
+				affinity: Some(Affinity {
+					pod_affinity: None,
+					pod_anti_affinity: None,
+					node_affinity: Some(NodeAffinity {
+						preferred_during_scheduling_ignored_during_execution: None,
+						required_during_scheduling_ignored_during_execution: Some(NodeSelector {
+							node_selector_terms: vec![
+								NodeSelectorTerm {
+									match_fields: None,
+									match_expressions: Some(vec![
+										NodeSelectorRequirement {
+											key: "example.com/key".to_string(),
+											operator: "In".to_string(),
+											values: Some(vec!["a".into(), "b".into()]),
+										},
+									]),
+								},
+								NodeSelectorTerm {
+									match_expressions: None,
+									match_fields: Some(vec![
+										NodeSelectorRequirement {
+											key: "metadata.name".to_string(),
+											operator: "In".to_string(),
+											values: Some(vec!["potato".into(), "banana".into()]),
+										},
+									]),
+								}
+							],
+						}),
+					}),
+				}),
 				tolerations: None,
 				on_conflict: Default::default(),
 			});
@@ -182,7 +235,37 @@ mod tests {
 					("b".into(), "2".into()),
 					("c".into(), "3".into()),
 				])),
-				affinity: Some(vec![]),
+				affinity: Some(Affinity {
+					pod_affinity: None,
+					pod_anti_affinity: None,
+					node_affinity: Some(NodeAffinity {
+						preferred_during_scheduling_ignored_during_execution: None,
+						required_during_scheduling_ignored_during_execution: Some(NodeSelector {
+							node_selector_terms: vec![
+								NodeSelectorTerm {
+									match_fields: None,
+									match_expressions: Some(vec![
+										NodeSelectorRequirement {
+											key: "example.com/key".to_string(),
+											operator: "In".to_string(),
+											values: Some(vec!["a".into(), "b".into()]),
+										},
+									]),
+								},
+								NodeSelectorTerm {
+									match_expressions: None,
+									match_fields: Some(vec![
+										NodeSelectorRequirement {
+											key: "metadata.name".to_string(),
+											operator: "In".to_string(),
+											values: Some(vec!["potato".into(), "banana".into()]),
+										},
+									]),
+								}
+							],
+						}),
+					}),
+				}),
 				tolerations: Some(vec![Toleration {
 					effect: Some("NoSchedule".into()),
 					key: Some("foo".into()),
@@ -239,16 +322,23 @@ mod tests {
 			jail.create_file(DEFAULT_CONFIG_FILE, indoc! { r#"
 				groups:
 				  foo:
-				    affinity: ["x", "y"]
+				    nodeSelector:
+				      a: "x"
+				      b: "y"
+				      c: "z"
 			"# })?;
-			jail.set_env("PD_GROUPS_FOO_AFFINITY", r#"["a", "b"]"#);
+			jail.set_env("PD_groups_foo_nodeSelector", r#"{a="1",b="2"}"#);
 
 			let config = Config::load()?;
 
 			let mut groups = HashMap::new();
 			groups.insert("foo".into(), GroupConfig {
-				node_selector: None,
-				affinity: Some(vec!["a".into(), "b".into()]),
+				node_selector: Some(HashMap::from([
+					("a".into(), "1".into()),
+					("b".into(), "2".into()),
+					("c".into(), "z".into()),
+				])),
+				affinity: None,
 				tolerations: None,
 				on_conflict: Default::default(),
 			});
@@ -262,14 +352,17 @@ mod tests {
 	#[test]
 	fn given_value_provided_by_env_and_by_file_then_should_load_value_from_env() {
 		Jail::expect_with(|jail| {
-			jail.set_env("PD_GROUPS_FOO_AFFINITY", r#"["a", "b"]"#);
+			jail.set_env("PD_groups_foo_nodeSelector", r#"{a="1",b="2"}"#);
 
 			let config = Config::load()?;
 
 			let mut groups = HashMap::new();
 			groups.insert("foo".into(), GroupConfig {
-				node_selector: None,
-				affinity: Some(vec!["a".into(), "b".into()]),
+				node_selector: Some(HashMap::from([
+					("a".into(), "1".into()),
+					("b".into(), "2".into()),
+				])),
+				affinity: None,
 				tolerations: None,
 				on_conflict: Default::default(),
 			});
