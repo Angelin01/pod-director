@@ -1,17 +1,18 @@
 use std::collections::BTreeMap;
 use axum::body::Body;
-use k8s_openapi::api::core::v1::Toleration;
+use k8s_openapi::api::core::v1::{Affinity, NodeAffinity, Toleration};
 use serde_json::json;
 
 pub struct PodCreateRequestBuilder {
 	namespace: Option<String>,
 	node_selector: Option<BTreeMap<String, String>>,
-	tolerations: Option<Vec<Toleration>>
+	tolerations: Option<Vec<Toleration>>,
+	affinity: Option<Affinity>,
 }
 
 impl PodCreateRequestBuilder {
 	pub fn new() -> Self {
-		Self { namespace: None, node_selector: None, tolerations: None }
+		Self { namespace: None, node_selector: None, tolerations: None, affinity: None }
 	}
 
 	pub fn with_namespace<S: AsRef<str>>(mut self, namespace: S) -> Self {
@@ -20,14 +21,19 @@ impl PodCreateRequestBuilder {
 	}
 
 	pub fn with_node_selector<S: AsRef<str>, R: AsRef<str>>(mut self, label: S, value: R) -> Self {
-		self.node_selector.get_or_insert_with(BTreeMap::new)
+		self.node_selector.get_or_insert_default()
 			.insert(label.as_ref().into(), value.as_ref().into());
 		self
 	}
 
 	pub fn with_toleration(mut self, toleration: Toleration) -> Self {
-		self.tolerations.get_or_insert_with(Vec::new)
+		self.tolerations.get_or_insert_default()
 			.push(toleration);
+		self
+	}
+
+	pub fn with_node_affinity(mut self, node_affinity: NodeAffinity) -> Self {
+		self.affinity.get_or_insert_default().node_affinity = Some(node_affinity);
 		self
 	}
 
@@ -83,6 +89,7 @@ impl PodCreateRequestBuilder {
 		        "namespace": "test"
 		      },
 		      "spec": {
+			  "affinity": self.affinity,
 		      "containers": [{
 		        "args": ["sh"],
 		        "image": "alpine",
